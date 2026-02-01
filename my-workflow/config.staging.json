@@ -1,0 +1,10 @@
+{
+  "geminiModel": "gpt-4o-mini",
+  "evms": [
+    {
+      "marketAddress": "0x62d8D11bD63eEDA81715d19332DFC6e50782045c",
+      "chainSelectorName": "ethereum-testnet-sepolia",
+      "gasLimit": "500000"
+    }
+  ]
+}
