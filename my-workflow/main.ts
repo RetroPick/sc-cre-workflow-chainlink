@@ -1,144 +1,55 @@
-// prediction-market/my-workflow/httpCallback.ts
+// prediction-market/my-workflow/main.ts
 
-import {
-  cre,
-  Runner,
-  type Runtime,
-  type HTTPPayload,
-  getNetwork,
-  bytesToHex,
-  hexToBase64,
-  TxStatus,
-  decodeJson,
-} from "@chainlink/cre-sdk";
-import { encodeAbiParameters, parseAbiParameters } from "viem";
+import { cre, Runner, getNetwork } from "@chainlink/cre-sdk";
+import { keccak256, toHex } from "viem";
+import { onHttpTrigger } from "./httpCallback";
+import { onLogTrigger } from "./logCallback";
 
-// Inline types
-interface CreateMarketPayload {
-  question: string;
-}
-
+// Config type (matches config.staging.json structure)
 type Config = {
-    gptModel: string;
-    evms: Array<{
-        marketAddress: string;
-        chainSelectorName: string;
-        gasLimit: string;
-    }>;
+  gptModel: string;
+  evms: Array<{
+    marketAddress: string;
+    chainSelectorName: string;
+    gasLimit: string;
+  }>;
 };
 
-// ABI parameters for createMarket function
-const CREATE_MARKET_PARAMS = parseAbiParameters("string question");
-
-function onHttpTrigger(runtime: Runtime<Config>, payload: HTTPPayload): string {
-  runtime.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  runtime.log("CRE Workflow: HTTP Trigger - Create Market");
-  runtime.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-  try {
-    // ─────────────────────────────────────────────────────────────
-    // Step 1: Parse and validate the incoming payload
-    // ─────────────────────────────────────────────────────────────
-    if (!payload.input || payload.input.length === 0) {
-      runtime.log("[ERROR] Empty request payload");
-      return "Error: Empty request";
-    }
-
-    const inputData = decodeJson(payload.input) as CreateMarketPayload; // parse JSON from API
-    runtime.log(`[Step 1] Received market question: "${inputData.question}"`);
-
-    if (!inputData.question || inputData.question.trim().length === 0) {
-      runtime.log("[ERROR] Question is required");
-      return "Error: Question is required";
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Step 2: Get network and create EVM client
-    // ─────────────────────────────────────────────────────────────
-    const evmConfig = runtime.config.evms[0];
-
-    const network = getNetwork({
-      chainFamily: "evm",
-      chainSelectorName: evmConfig.chainSelectorName,
-      isTestnet: true,
-    });
-
-    if (!network) {
-      throw new Error(`Unknown chain: ${evmConfig.chainSelectorName}`);
-    }
-
-    runtime.log(`[Step 2] Target chain: ${evmConfig.chainSelectorName}`);
-    runtime.log(`[Step 2] Contract address: ${evmConfig.marketAddress}`);
- 
-    const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
-
-    // ─────────────────────────────────────────────────────────────
-    // Step 3: Encode the market data for the smart contract
-    // ─────────────────────────────────────────────────────────────
-    runtime.log("[Step 3] Encoding market data...");
-
-    const reportData = encodeAbiParameters(CREATE_MARKET_PARAMS, [inputData.question]); // creates ABI bytes for question
-
-    // ─────────────────────────────────────────────────────────────
-    // Step 4: Generate a signed CRE report
-    // ─────────────────────────────────────────────────────────────
-    runtime.log("[Step 4] Generating CRE report...");
-
-    const reportResponse = runtime
-      .report({
-        encodedPayload: hexToBase64(reportData), // Question that has been converted into ABIs
-        encoderName: "evm",
-        signingAlgo: "ecdsa",
-        hashingAlgo: "keccak256",
-      })
-      .result();
-
-    // ─────────────────────────────────────────────────────────────
-    // Step 5: Write the report to the smart contract
-    // ─────────────────────────────────────────────────────────────
-    runtime.log(`[Step 5] Writing to contract: ${evmConfig.marketAddress}`);
-
-    const writeResult = evmClient
-      .writeReport(runtime, {
-        receiver: evmConfig.marketAddress,
-        report: reportResponse,
-        gasConfig: {
-          gasLimit: evmConfig.gasLimit,
-        },
-      })
-      .result();
-
-    // ─────────────────────────────────────────────────────────────
-    // Step 6: Check result and return transaction hash
-    // ─────────────────────────────────────────────────────────────
-    if (writeResult.txStatus === TxStatus.SUCCESS) {
-      const txHash = bytesToHex(writeResult.txHash || new Uint8Array(32));
-      runtime.log(`[Step 6] ✓ Transaction successful: ${txHash}`);
-      runtime.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      return txHash;
-    }
-
-    throw new Error(`Transaction failed with status: ${writeResult.txStatus}`);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    runtime.log(`[ERROR] ${msg}`);
-    runtime.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    throw err;
-  }
-}
+const SETTLEMENT_REQUESTED_SIGNATURE = "SettlementRequested(uint256,string)";
 
 const initWorkflow = (config: Config) => {
+  // Initialize HTTP capability
   const httpCapability = new cre.capabilities.HTTPCapability();
-  const httpTrigger = httpCapability.trigger({
-    authorizedKeys: [
-      {
-        type: "KEY_TYPE_ECDSA_EVM",
-        publicKey: "0xbeaA395506D02d20749d8E39ddb996ACe1C85Bfc",
-      },
-    ],
+  const httpTrigger = httpCapability.trigger({});
+
+  // Get network for Log Trigger
+  const network = getNetwork({
+    chainFamily: "evm",
+    chainSelectorName: config.evms[0].chainSelectorName,
+    isTestnet: true,
   });
 
-  return [cre.handler(httpTrigger, onHttpTrigger)];
+  if (!network) {
+    throw new Error(`Network not found: ${config.evms[0].chainSelectorName}`);
+  }
+
+  const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
+  const eventHash = keccak256(toHex(SETTLEMENT_REQUESTED_SIGNATURE));
+
+  return [
+    // Day 1: HTTP Trigger - Market Creation
+    cre.handler(httpTrigger, onHttpTrigger),
+    
+    // Day 2: Log Trigger - Event-Driven Settlement ← NEW!
+    cre.handler(
+      evmClient.logTrigger({
+        addresses: [config.evms[0].marketAddress],
+        topics: [{ values: [eventHash] }],
+        confidence: "CONFIDENCE_LEVEL_FINALIZED",
+      }),
+      onLogTrigger
+    ),
+  ];
 };
 
 export async function main() {
