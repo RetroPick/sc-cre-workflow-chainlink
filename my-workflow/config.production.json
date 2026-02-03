@@ -1,5 +1,10 @@
 {
-  "gptModel": "gpt-4o-mini",
+  "gptModel": "deepseek-chat",
+  "useMockAi": false,
+  "cronSchedule": "*/15 * * * *",
+  "marketFactoryAddress": "",
+  "creatorAddress": "",
+  "feeds": [],
   "evms": [
     {
       "marketAddress": "0x62d8D11bD63eEDA81715d19332DFC6e50782045c",

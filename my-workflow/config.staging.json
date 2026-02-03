@@ -3,6 +3,32 @@
   "deepseekApiKey": "sk-f619cc34a25842b3ba3bf9963d0fa816",
   "useMockAi": true,
   "mockAiResponse": "{\"result\":\"YES\",\"confidence\":10000}",
+  "cronSchedule": "*/15 * * * *",
+  "marketFactoryAddress": "",
+  "creatorAddress": "0xbeaA395506D02d20749d8E39ddb996ACe1C85Bfc",
+  "feeds": [
+    {
+      "id": "coingecko-btc",
+      "type": "coinGecko",
+      "coinId": "bitcoin",
+      "vsCurrency": "usd",
+      "multiplier": 1.05,
+      "resolveSeconds": 86400,
+      "category": "crypto",
+      "mock": true,
+      "mockValue": 42000
+    },
+    {
+      "id": "custom-demo",
+      "type": "custom",
+      "questionTemplate": "Will {{value}} be above 50 tomorrow?",
+      "valuePath": "value",
+      "resolveSeconds": 86400,
+      "category": "demo",
+      "mock": true,
+      "mockValue": 55
+    }
+  ],
   "evms": [
     {
       "marketAddress": "0x62d8D11bD63eEDA81715d19332DFC6e50782045c",

@@ -6,20 +6,13 @@ import {
     type HTTPPayload,
     decodeJson,
 } from "@chainlink/cre-sdk";
+import type { WorkflowConfig } from "./types/config";
 
 // Interface for the HTTP Payload
 interface CreateMarketPayload {
     question: string;
 }
-
-type Config = {
-    gptModel: string;
-    evms: {
-        marketAddress: string;
-        chainSelectorName: string;
-        gasLimit: string;
-    }[];
-}
+type Config = WorkflowConfig;
 
 export function onHttpTrigger(runtime: Runtime<Config>, payload: HTTPPayload): string {
     runtime.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

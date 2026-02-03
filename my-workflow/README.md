@@ -52,6 +52,26 @@ Example: For workflow named `hello-world` the command would be:
 cre workflow simulate ./hello-world --target=staging-settings
 ```
 
+## 3.1 Cron-driven market creation
+
+The workflow can also generate markets automatically from configured feeds using a cron trigger.
+Configure these fields in `config.staging.json` or `config.production.json`:
+
+- `cronSchedule`
+- `marketFactoryAddress`
+- `creatorAddress`
+- `feeds`
+
+For demo runs without a paid AI key, set:
+
+```json
+"useMockAi": true,
+"mockAiResponse": "{\"result\":\"YES\",\"confidence\":10000}"
+```
+
+Market creation uses `MarketFactory` as the receiver for CRE reports. The factory then
+creates a market in `PredictionMarket` and stores metadata for audits.
+
 ## 4. Trigger settlement (Log Trigger)
 
 If you want to emit `SettlementRequested`, use the helper script so the

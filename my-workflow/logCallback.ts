@@ -22,19 +22,13 @@ import {
 } from "viem";
 
 import { askGPT } from "./gpt";
+import type { WorkflowConfig } from "./types/config";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Types                                    */
 /* -------------------------------------------------------------------------- */
 
-export type Config = {
-  openaiApiKey: string;
-  evms: Array<{
-    marketAddress: string;
-    chainSelectorName: string;
-    gasLimit: string;
-  }>;
-};
+export type Config = WorkflowConfig;
 
 interface Market {
   creator: string;

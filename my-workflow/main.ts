@@ -4,23 +4,19 @@ import { cre, Runner, getNetwork } from "@chainlink/cre-sdk";
 import { keccak256, toHex } from "viem";
 import { onHttpTrigger } from "./httpCallback";
 import { onLogTrigger } from "./logCallback";
-
-// Config type (matches config.staging.json structure)
-type Config = {
-  geminiModel: string;
-  evms: Array<{
-    marketAddress: string;
-    chainSelectorName: string;
-    gasLimit: string;
-  }>;
-};
+import { onScheduleTrigger } from "./jobs/scheduleTrigger";
+import type { WorkflowConfig } from "./types/config";
 
 const SETTLEMENT_REQUESTED_SIGNATURE = "SettlementRequested(uint256,string)";
 
-const initWorkflow = (config: Config) => {
+const initWorkflow = (config: WorkflowConfig) => {
   // Initialize HTTP capability
   const httpCapability = new cre.capabilities.HTTPCapability();
   const httpTrigger = httpCapability.trigger({});
+  const cronCapability = new cre.capabilities.CronCapability();
+  const cronTrigger = cronCapability.trigger({
+    schedule: config.cronSchedule || "*/15 * * * *",
+  });
 
   // Get network for Log Trigger
   const network = getNetwork({
@@ -37,6 +33,8 @@ const initWorkflow = (config: Config) => {
   const eventHash = keccak256(toHex(SETTLEMENT_REQUESTED_SIGNATURE));
 
   return [
+    // Autonomous Cron Trigger - Feed-driven Market Creation
+    cre.handler(cronTrigger, onScheduleTrigger),
     // Day 1: HTTP Trigger - Market Creation
     cre.handler(httpTrigger, onHttpTrigger),
     
@@ -53,7 +51,7 @@ const initWorkflow = (config: Config) => {
 };
 
 export async function main() {
-  const runner = await Runner.newRunner<Config>();
+  const runner = await Runner.newRunner<WorkflowConfig>();
   await runner.run(initWorkflow);
 }
 

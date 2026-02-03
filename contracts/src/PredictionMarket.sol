@@ -14,12 +14,14 @@ contract PredictionMarket is ReceiverTemplate {
     error NothingToClaim();
     error AlreadyClaimed();
     error TransferFailed();
+    error UnauthorizedFactory();
 
     event MarketCreated(uint256 indexed marketId, string question, address creator);
     event PredictionMade(uint256 indexed marketId, address indexed predictor, Prediction prediction, uint256 amount);
     event SettlementRequested(uint256 indexed marketId, string question);
     event MarketSettled(uint256 indexed marketId, Prediction outcome, uint16 confidence);
     event WinningsClaimed(uint256 indexed marketId, address indexed claimer, uint256 amount);
+    event MarketFactoryUpdated(address indexed previousFactory, address indexed newFactory);
 
     enum Prediction {
         Yes,
@@ -47,11 +49,19 @@ contract PredictionMarket is ReceiverTemplate {
     uint256 internal nextMarketId;
     mapping(uint256 marketId => Market market) internal markets;
     mapping(uint256 marketId => mapping(address user => UserPrediction)) internal predictions;
+    address public marketFactory;
 
     /// @notice Constructor sets the Chainlink Forwarder address for security
     /// @param _forwarderAddress The address of the Chainlink KeystoneForwarder contract
     /// @dev For Sepolia testnet, use: 0x15fc6ae953e024d975e77382eeec56a9101f9f88
     constructor(address _forwarderAddress) ReceiverTemplate(_forwarderAddress) {}
+
+    /// @notice Set the MarketFactory address allowed to create markets on behalf of users.
+    function setMarketFactory(address factory) external onlyOwner {
+        address previous = marketFactory;
+        marketFactory = factory;
+        emit MarketFactoryUpdated(previous, factory);
+    }
 
     // ================================================================
     // │                       Create market                          │
@@ -76,6 +86,28 @@ contract PredictionMarket is ReceiverTemplate {
         });
 
         emit MarketCreated(marketId, question, msg.sender);
+    }
+
+    /// @notice Create a market from the MarketFactory with an explicit creator.
+    /// @dev Reverts if caller is not the configured MarketFactory.
+    function createMarketFor(string memory question, address requestedBy) external returns (uint256 marketId) {
+        if (msg.sender != marketFactory) revert UnauthorizedFactory();
+
+        marketId = nextMarketId++;
+
+        markets[marketId] = Market({
+            creator: requestedBy,
+            createdAt: uint48(block.timestamp),
+            settledAt: 0,
+            settled: false,
+            confidence: 0,
+            outcome: Prediction.Yes,
+            totalYesPool: 0,
+            totalNoPool: 0,
+            question: question
+        });
+
+        emit MarketCreated(marketId, question, requestedBy);
     }
 
     // ================================================================

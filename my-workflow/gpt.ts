@@ -7,22 +7,13 @@ import {
     type Runtime,
     type HTTPSendRequester,
   } from "@chainlink/cre-sdk";
+import type { WorkflowConfig } from "./types/config";
   
   // ============================================================================
   // Types and Interfaces
   // ============================================================================
   
-  interface Config {
-    deepseekApiKey?: string;
-    gptModel?: string;
-    useMockAi?: boolean;
-    mockAiResponse?: string;
-    evms: Array<{
-      marketAddress: string;
-      chainSelectorName: string;
-      gasLimit: string;
-    }>;
-  }
+  type Config = WorkflowConfig;
   
   interface OpenAIResponse {
     id?: string;
