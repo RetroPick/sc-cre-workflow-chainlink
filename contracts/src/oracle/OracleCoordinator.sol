@@ -16,14 +16,18 @@ contract OracleCoordinator {
     event ReportValidatorUpdated(address indexed previous, address indexed current);
 
     modifier onlyReceiver() {
-        if (msg.sender != creReceiver) revert Errors.Unauthorized();
+        _onlyReceiver();
         _;
     }
 
-    function setCREReceiver(address receiver) external {
+    function setCreReceiver(address receiver) external {
         address previous = creReceiver;
         creReceiver = receiver;
         emit CREReceiverUpdated(previous, receiver);
+    }
+
+    function _onlyReceiver() internal view {
+        if (msg.sender != creReceiver) revert Errors.Unauthorized();
     }
 
     function setSettlementRouter(address router) external {

@@ -8,7 +8,7 @@ import {Errors} from "../utils/Errors.sol";
 /// @title Treasury
 /// @notice ERC20 escrow for market payouts (additive module).
 contract Treasury is ITreasury {
-    IERC20 public immutable token;
+    IERC20 public immutable TOKEN;
     mapping(address => bool) public approvedMarkets;
     mapping(address => uint256) public marketEscrow;
 
@@ -18,7 +18,7 @@ contract Treasury is ITreasury {
 
     constructor(address tokenAddress) {
         if (tokenAddress == address(0)) revert Errors.InvalidAddress();
-        token = IERC20(tokenAddress);
+        TOKEN = IERC20(tokenAddress);
     }
 
     function setMarketApproved(address market, bool approved) external {
@@ -31,7 +31,7 @@ contract Treasury is ITreasury {
         if (!approvedMarkets[market]) revert Errors.Unauthorized();
         if (amount == 0) revert Errors.InvalidAmount();
 
-        bool success = token.transferFrom(from, address(this), amount);
+        bool success = TOKEN.transferFrom(from, address(this), amount);
         if (!success) revert Errors.InvalidAmount();
         marketEscrow[market] += amount;
         emit Collected(market, from, amount);
@@ -43,7 +43,7 @@ contract Treasury is ITreasury {
         if (marketEscrow[market] < amount) revert Errors.InvalidAmount();
 
         marketEscrow[market] -= amount;
-        bool success = token.transfer(to, amount);
+        bool success = TOKEN.transfer(to, amount);
         if (!success) revert Errors.InvalidAmount();
         emit Paid(market, to, amount);
     }

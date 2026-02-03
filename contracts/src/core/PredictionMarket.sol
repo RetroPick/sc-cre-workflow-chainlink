@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {ReceiverTemplate} from "./interfaces/ReceiverTemplate.sol";
+import {ReceiverTemplate} from "../interfaces/ReceiverTemplate.sol";
 
 /// @title PredictionMarket
 /// @notice A simplified prediction market for CRE bootcamp.
@@ -203,6 +203,13 @@ contract PredictionMarket is ReceiverTemplate {
         emit MarketCreatedTyped(marketId, marketType, outcomesCount);
     }
 
+    /// @notice Store the timeline windows for a timeline market.
+    /// @param marketId The ID of the market.
+    /// @param windows The timeline windows.
+    /// @dev Reverts if the windows are not valid.
+    ///      - The windows must be sorted in ascending order.
+    ///      - The windows must be at least 2.
+    ///      - The windows must not be in the past.
     function _storeTimelineWindows(uint256 marketId, uint48[] memory windows) internal {
         if (windows.length < 2) revert InvalidOutcomeCount();
         for (uint256 i = 1; i < windows.length; i++) {
@@ -366,15 +373,15 @@ contract PredictionMarket is ReceiverTemplate {
 
             predictions[marketId][msg.sender].claimed = true;
 
-            uint256 totalPool = m.totalYesPool + m.totalNoPool;
-            uint256 winningPool = m.outcome == Prediction.Yes ? m.totalYesPool : m.totalNoPool;
-            if (winningPool == 0) revert NothingToClaim();
-            uint256 payout = (userPred.amount * totalPool) / winningPool;
+            uint256 totalPoolBinary = m.totalYesPool + m.totalNoPool;
+            uint256 winningPoolBinary = m.outcome == Prediction.Yes ? m.totalYesPool : m.totalNoPool;
+            if (winningPoolBinary == 0) revert NothingToClaim();
+            uint256 payoutBinary = (userPred.amount * totalPoolBinary) / winningPoolBinary;
 
-            (bool success,) = msg.sender.call{value: payout}("");
-            if (!success) revert TransferFailed();
+            (bool successBinary,) = msg.sender.call{value: payoutBinary}("");
+            if (!successBinary) revert TransferFailed();
 
-            emit WinningsClaimed(marketId, msg.sender, payout);
+            emit WinningsClaimed(marketId, msg.sender, payoutBinary);
             return;
         }
 

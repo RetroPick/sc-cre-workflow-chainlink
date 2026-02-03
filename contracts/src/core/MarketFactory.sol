@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {ReceiverTemplate} from "./interfaces/ReceiverTemplate.sol";
+import {ReceiverTemplate} from "../interfaces/ReceiverTemplate.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
@@ -77,7 +77,7 @@ contract MarketFactory is ReceiverTemplate {
         uint8 outcomesCount;
     }
 
-    IPredictionMarket public immutable predictionMarket;
+    IPredictionMarket public immutable PREDICTION_MARKET;
     uint256 public minQuestionLength = 10;
     uint256 public maxQuestionLength = 200;
 
@@ -90,7 +90,7 @@ contract MarketFactory is ReceiverTemplate {
 
     constructor(address forwarderAddress, address predictionMarketAddress) ReceiverTemplate(forwarderAddress) {
         if (predictionMarketAddress == address(0)) revert InvalidMarketAddress();
-        predictionMarket = IPredictionMarket(predictionMarketAddress);
+        PREDICTION_MARKET = IPredictionMarket(predictionMarketAddress);
     }
 
     /// @notice Update question length bounds.
@@ -105,8 +105,8 @@ contract MarketFactory is ReceiverTemplate {
             _validateInputV2(inputV2);
             usedExternalIds[inputV2.externalId] = true;
 
-            uint256 marketId = _createTypedMarket(inputV2);
-            marketMetadata[marketId] = MarketMetadata({
+            uint256 createdMarketId = _createTypedMarket(inputV2);
+            marketMetadata[createdMarketId] = MarketMetadata({
                 requestedBy: inputV2.requestedBy,
                 resolveTime: inputV2.resolveTime,
                 category: inputV2.category,
@@ -117,7 +117,7 @@ contract MarketFactory is ReceiverTemplate {
             });
 
             emit MarketSpawned(
-                marketId,
+                createdMarketId,
                 inputV2.requestedBy,
                 inputV2.question,
                 inputV2.resolveTime,
@@ -126,7 +126,7 @@ contract MarketFactory is ReceiverTemplate {
                 inputV2.externalId
             );
             emit MarketSpawnedTyped(
-                marketId,
+                createdMarketId,
                 inputV2.requestedBy,
                 inputV2.marketType,
                 _outcomesCount(inputV2),
@@ -139,7 +139,7 @@ contract MarketFactory is ReceiverTemplate {
         _validateInput(input);
         usedExternalIds[input.externalId] = true;
 
-        uint256 marketId = predictionMarket.createMarketFor(input.question, input.requestedBy);
+        uint256 marketId = PREDICTION_MARKET.createMarketFor(input.question, input.requestedBy);
         marketMetadata[marketId] = MarketMetadata({
             requestedBy: input.requestedBy,
             resolveTime: input.resolveTime,
@@ -205,8 +205,8 @@ contract MarketFactory is ReceiverTemplate {
         }
 
         if (input.signature.length > 0) {
-            bytes32 outcomesHash = keccak256(abi.encode(input.outcomes));
-            bytes32 windowsHash = keccak256(abi.encode(input.timelineWindows));
+            bytes32 outcomesHash = _hashBytes(abi.encode(input.outcomes));
+            bytes32 windowsHash = _hashBytes(abi.encode(input.timelineWindows));
             bytes32 digest = keccak256(
                 abi.encodePacked(
                     address(this),
@@ -229,13 +229,13 @@ contract MarketFactory is ReceiverTemplate {
 
     function _createTypedMarket(MarketInputV2 memory input) internal returns (uint256) {
         if (input.marketType == MARKET_TYPE_BINARY) {
-            return predictionMarket.createMarketFor(input.question, input.requestedBy);
+            return PREDICTION_MARKET.createMarketFor(input.question, input.requestedBy);
         }
         if (input.marketType == MARKET_TYPE_CATEGORICAL) {
-            return predictionMarket.createCategoricalMarketFor(input.question, input.outcomes, input.requestedBy);
+            return PREDICTION_MARKET.createCategoricalMarketFor(input.question, input.outcomes, input.requestedBy);
         }
         if (input.marketType == MARKET_TYPE_TIMELINE) {
-            return predictionMarket.createTimelineMarketFor(input.question, input.timelineWindows, input.requestedBy);
+            return PREDICTION_MARKET.createTimelineMarketFor(input.question, input.timelineWindows, input.requestedBy);
         }
         revert InvalidMarketType();
     }
@@ -248,5 +248,11 @@ contract MarketFactory is ReceiverTemplate {
             return uint8(input.outcomes.length);
         }
         return 2;
+    }
+
+    function _hashBytes(bytes memory data) internal pure returns (bytes32 digest) {
+        assembly {
+            digest := keccak256(add(data, 0x20), mload(data))
+        }
     }
 }

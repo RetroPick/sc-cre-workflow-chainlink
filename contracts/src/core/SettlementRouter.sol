@@ -19,13 +19,21 @@ contract SettlementRouter is ISettlementRouter {
     event MarketSettled(address indexed market, uint256 marketId, uint8 outcomeIndex, uint16 confidence);
 
     modifier onlyOracleCoordinator() {
-        if (msg.sender != oracleCoordinator) revert Errors.Unauthorized();
+        _onlyOracleCoordinator();
         _;
     }
 
     modifier onlySessionFinalizer() {
-        if (msg.sender != sessionFinalizer) revert Errors.Unauthorized();
+        _onlySessionFinalizer();
         _;
+    }
+
+    function _onlyOracleCoordinator() internal view {
+        if (msg.sender != oracleCoordinator) revert Errors.Unauthorized();
+    }
+
+    function _onlySessionFinalizer() internal view {
+        if (msg.sender != sessionFinalizer) revert Errors.Unauthorized();
     }
 
     function setOracleCoordinator(address coordinator) external {

@@ -637,3 +637,200 @@ abi.encode(["string", "string[]", "uint8"], [question, ["TeamA", "TeamB", "Draw"
 ---
 
 Would you like the Foundry tests or the updated `MarketFactory.sol` next for this upgrade?
+
+
+
+[17 tools called]
+
+Here’s a full, accurate walkthrough of how the **current smart contracts in this repo** work, based strictly on the code that exists today.
+
+---
+
+## High‑level architecture (what’s actually wired)
+
+There are two independent CRE entrypoints:
+
+1) **`PredictionMarket`** — the core market contract, directly receives CRE reports (create or settle).  
+2) **`MarketFactory`** — a CRE receiver that validates incoming feed data and **creates markets** in `PredictionMarket`.
+
+There is also an **oracle/settlement stack** (`CREReceiver → OracleCoordinator → SettlementRouter`) plus an ERC‑20 `Treasury`, but these are **not wired into `PredictionMarket`** at the moment. `PredictionMarket` still uses **ETH pools** and direct payouts. That stack is currently additive / optional, not integrated.
+
+---
+
+## 1) Core market contract: `PredictionMarket`
+
+`PredictionMarket` is **both** a market engine and a CRE report receiver (via `ReceiverTemplate`). It supports **binary, categorical, and timeline** markets.
+
+### Market creation
+- **Binary** markets are created via `createMarket` (public), or `createMarketFor` (only the configured `marketFactory`).  
+- **Categorical / Timeline** markets have explicit create functions too.  
+- The MarketFactory can call `createMarketFor`, `createCategoricalMarketFor`, `createTimelineMarketFor` **if it has been set** via `setMarketFactory`.
+
+Code refs:  
+```
+96:179:contracts/src/core/PredictionMarket.sol
+```
+
+### Predicting
+- Predictions are **paid in ETH** (`msg.value`).
+- Users can only predict once per market.
+- Pools are tracked separately for binary vs typed markets.
+
+Code refs:  
+```
+219:275:contracts/src/core/PredictionMarket.sol
+```
+
+### Settlement request
+- `requestSettlement(marketId)` **does not settle**; it only emits `SettlementRequested`.
+- CRE listens to this event (log trigger), pulls market details off‑chain, then sends back the settlement report.
+
+Code refs:  
+```
+281:291:contracts/src/core/PredictionMarket.sol
+```
+
+### Settlement from CRE
+- CRE sends a report to `onReport`, which dispatches to `_processReport`.  
+- If report starts with **prefix `0x01`**, it means **settlement** and `_settleMarket` is used.
+- Settlement report format: `abi.encode(uint256 marketId, uint8 outcomeIndex, uint16 confidence)` with prefix `0x01`.
+
+Code refs:  
+```
+297:346:contracts/src/core/PredictionMarket.sol
+```
+
+### Claiming winnings
+- For binary markets: payout = userAmount * totalPool / winningPool.  
+- For typed markets: same idea but computed across categorical/timeline pools.  
+- Payouts are done in **ETH** with `call{value: payout}("")`.
+
+Code refs:  
+```
+352:413:contracts/src/core/PredictionMarket.sol
+```
+
+---
+
+## 2) Market creation via CRE: `MarketFactory`
+
+`MarketFactory` is a CRE receiver that **validates market data**, de‑duplicates external IDs, validates signatures (optional), and then calls into `PredictionMarket` to create a market **on behalf of** the requester.
+
+### Key behaviors
+- Accepts two report formats:
+  - **V1**: no prefix → `MarketInput` (binary markets only)
+  - **V2**: prefix `0x02` → `MarketInputV2` (binary/categorical/timeline)
+- Validates:
+  - `requestedBy` not zero
+  - question length bounds
+  - resolveTime > now
+  - `externalId` not reused
+  - optional ECDSA signature
+  - marketType + outcomes/timeline consistency
+
+Code refs:  
+```
+102:240:contracts/src/core/MarketFactory.sol
+```
+
+---
+
+## 3) CRE report security: `ReceiverTemplate`
+
+Both `PredictionMarket` and `MarketFactory` inherit this.
+
+Key security features:
+- **Forwarder check** (default): only the configured Chainlink Forwarder can call `onReport`.
+- Optional expected workflow ID / author / name validation (owner can set).
+- Insecure mode possible by setting forwarder to `address(0)` (warning emitted).
+
+Code refs:  
+```
+76:120:contracts/src/interfaces/ReceiverTemplate.sol
+122:190:contracts/src/interfaces/ReceiverTemplate.sol
+```
+
+---
+
+## 4) Optional Oracle + Settlement stack (present but not wired)
+
+These are **in the repo**, but not currently plugged into `PredictionMarket`.
+
+### `CREReceiver`
+- Receives CRE report: `abi.encode(address market, uint256 marketId, uint8 outcomeIndex, uint16 confidence)`
+- Forwards to `OracleCoordinator.submitResult`.
+
+Code refs:  
+```
+24:28:contracts/src/oracle/CREReceiver.sol
+```
+
+### `OracleCoordinator`
+- Only accepts results from `creReceiver`.
+- Optionally enforces confidence via `ReportValidator`.
+- Calls `SettlementRouter.settleMarket`.
+
+Code refs:  
+```
+41:49:contracts/src/oracle/OracleCoordinator.sol
+```
+
+### `SettlementRouter`
+- Only callable by `oracleCoordinator`.
+- Builds `report = 0x01 || abi.encode(marketId, outcomeIndex, confidence)`
+- Calls `PredictionMarket.onReport(...)`
+
+Code refs:  
+```
+43:51:contracts/src/core/SettlementRouter.sol
+```
+
+**Important:** `PredictionMarket` will only accept this if its forwarder is set to `SettlementRouter` (or forwarder check disabled). That wiring isn’t shown in the code itself; it’s a deployment/config step.
+
+---
+
+## 5) Treasury module (ERC‑20, not used by `PredictionMarket`)
+
+`Treasury` is an escrow for ERC‑20 funds and supports `collectBet` / `pay`, but **`PredictionMarket` uses ETH pools and does not call it**.
+
+Code refs:  
+```
+24:48:contracts/src/core/Treasury.sol
+```
+
+---
+
+## End‑to‑end flows (as implemented)
+
+### A) Direct CRE → market creation or settlement
+1. CRE Forwarder calls `PredictionMarket.onReport`.
+2. `ReceiverTemplate` checks forwarder + workflow metadata.
+3. If report starts with `0x01`, it settles the market.
+4. Otherwise it treats report as a string question and creates a new binary market.
+
+### B) CRE → MarketFactory → PredictionMarket
+1. CRE Forwarder calls `MarketFactory.onReport`.
+2. Factory validates payload and creates a market in `PredictionMarket` with explicit `requestedBy`.
+3. `PredictionMarket` stores metadata and emits events.
+
+---
+
+## If you want the oracle/settlement stack to be “the” settlement path
+
+Right now, `PredictionMarket` still expects CRE to call it directly.  
+If you want the oracle stack to settle it:
+
+- Set `PredictionMarket` forwarder to `SettlementRouter` (or disable forwarder check).  
+- Ensure `CREReceiver` is the CRE forwarder entrypoint.  
+- Configure `OracleCoordinator` and `SettlementRouter` addresses.
+
+This wiring is possible with the current code but not enforced by it.
+
+---
+
+If you want, I can also provide:
+- A diagram of the exact flow for your current deployment
+- A minimal checklist for wiring the optional oracle stack
+- A safe configuration for `ReceiverTemplate` (forwarder + workflow checks)
+
+Just tell me which one you want.
