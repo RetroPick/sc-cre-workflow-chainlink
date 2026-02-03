@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONFIG_PATH="${1:-"$SCRIPT_DIR/config.staging.json"}"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CONFIG_PATH="${1:-"$ROOT_DIR/config.staging.json"}"
 MARKET_ID="${2:-0}"
 RPC_URL="${RPC_URL:-https://ethereum-sepolia-rpc.publicnode.com}"
 
@@ -25,11 +25,7 @@ if [[ -z "$MARKET_ADDRESS" ]]; then
   exit 1
 fi
 
-if [[ -z "${CRE_ETH_PRIVATE_KEY:-}" ]]; then
-  echo "Missing CRE_ETH_PRIVATE_KEY." >&2
-  exit 1
-fi
-
-cast send "$MARKET_ADDRESS" "requestSettlement(uint256)" "$MARKET_ID" \
-  --rpc-url "$RPC_URL" \
-  --private-key "$CRE_ETH_PRIVATE_KEY"
+cast call "$MARKET_ADDRESS" \
+  "getMarket(uint256) returns ((address,uint48,uint48,bool,uint16,uint8,uint256,uint256,string))" \
+  "$MARKET_ID" \
+  --rpc-url "$RPC_URL"

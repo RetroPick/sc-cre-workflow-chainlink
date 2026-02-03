@@ -1,5 +1,8 @@
 {
-  "gptModel": "gpt-4o-mini",
+  "gptModel": "deepseek-chat",
+  "deepseekApiKey": "sk-f619cc34a25842b3ba3bf9963d0fa816",
+  "useMockAi": true,
+  "mockAiResponse": "{\"result\":\"YES\",\"confidence\":10000}",
   "evms": [
     {
       "marketAddress": "0x62d8D11bD63eEDA81715d19332DFC6e50782045c",

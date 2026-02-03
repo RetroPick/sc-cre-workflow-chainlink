@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONFIG_PATH="${1:-"$SCRIPT_DIR/config.staging.json"}"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CONFIG_PATH="${1:-"$ROOT_DIR/config.staging.json"}"
 MARKET_ID="${2:-0}"
 PREDICTION="${3:-0}" # 0 = Yes, 1 = No
 VALUE_ETH="${4:-0.01ether}"

@@ -13,7 +13,10 @@ import {
   // ============================================================================
   
   interface Config {
-    openaiApiKey: string;
+    deepseekApiKey?: string;
+    gptModel?: string;
+    useMockAi?: boolean;
+    mockAiResponse?: string;
     evms: Array<{
       marketAddress: string;
       chainSelectorName: string;
@@ -26,6 +29,13 @@ import {
     choices?: Array<{
       message?: {
         content?: string;
+      };
+    }>;
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{
+          text?: string;
+        }>;
       };
     }>;
   }
@@ -42,12 +52,22 @@ import {
     confidence: number;
   }
   
+  function getErrorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    return String(error);
+  }
+
+  function encodeJsonBodyBase64(payload: unknown): string {
+    const json = JSON.stringify(payload);
+    return Buffer.from(json, "utf8").toString("base64");
+  }
+
   // ============================================================================
   // Constants
   // ============================================================================
   
-  const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-  const OPENAI_MODEL = "gpt-4";
+  const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
+  const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
   const RESPONSE_CACHE_AGE = "60s";
   const DEFAULT_TEMPERATURE = 0.0;
   const MAX_CONFIDENCE = 10000;
@@ -85,16 +105,45 @@ import {
   // Service Functions
   // ============================================================================
   
+  function resolveApiKey(runtime: Runtime<Config>): string {
+    try {
+      const secret = runtime.getSecret({ id: "DEEPSEEK_API_KEY" }).result();
+      if (secret?.value) return secret.value;
+    } catch {}
+
+    if (runtime.config.deepseekApiKey && runtime.config.deepseekApiKey.trim()) {
+      return runtime.config.deepseekApiKey.trim();
+    }
+
+    throw new Error(
+      "DeepSeek API key not found. Set DEEPSEEK_API_KEY as a CRE secret, or set deepseekApiKey in config."
+    );
+  }
+
   export class GPTService {
     constructor(private readonly runtime: Runtime<Config>) {}
   
-    public async askGPT(question: string): Promise<GPTResponse> {
-      this.runtime.log("[GPT] Querying OpenAI for market outcome...");
+    public askGPT(question: string): GPTResponse {
+      if (this.runtime.config.useMockAi) {
+        const mockResponse =
+          this.runtime.config.mockAiResponse ||
+          '{"result":"YES","confidence":10000}';
+        this.runtime.log("[DeepSeek] Using mock AI response for demo.");
+        return {
+          statusCode: 200,
+          gptResponse: mockResponse,
+          responseId: "mock",
+          rawJsonString: mockResponse,
+        };
+      }
+
+      this.runtime.log("[DeepSeek] Querying AI for market outcome...");
   
-      const apiKey = this.runtime.getSecret({ id: "OPENAI_API_KEY" }).result();
+      const apiKey = { value: resolveApiKey(this.runtime) };
       const httpClient = new cre.capabilities.HTTPClient();
   
-      const requestBuilder = this.buildGPTRequest(question, apiKey.value);
+      const model = this.runtime.config.gptModel?.trim() || DEFAULT_DEEPSEEK_MODEL;
+      const requestBuilder = this.buildGPTRequest(question, apiKey.value, model);
       const aggregatedResponse = consensusIdenticalAggregation<GPTResponse>();
   
       const result = httpClient
@@ -102,7 +151,7 @@ import {
         (this.runtime.config)
         .result();
   
-      this.runtime.log(`[GPT] Response received: ${result.gptResponse}`);
+      this.runtime.log(`[DeepSeek] Response received: ${result.gptResponse}`);
       return result;
     }
   
@@ -113,30 +162,30 @@ import {
         this.validateOutcome(outcome);
         return outcome;
       } catch (error) {
-        throw new Error(`Failed to parse GPT outcome: ${error.message}`);
+        throw new Error(`Failed to parse GPT outcome: ${getErrorMessage(error)}`);
       }
     }
   
-    private buildGPTRequest(question: string, apiKey: string) {
+    private buildGPTRequest(question: string, apiKey: string, model: string) {
       return (sendRequester: HTTPSendRequester, config: Config): GPTResponse => {
-        const request = this.createOpenAIRequest(question, apiKey);
+        const request = this.createDeepSeekRequest(question, apiKey, model);
         const response = sendRequester.sendRequest(request).result();
         
-        return this.handleOpenAIResponse(response);
+        return this.handleDeepSeekResponse(response);
       };
     }
-  
-    private createOpenAIRequest(question: string, apiKey: string) {
+
+    private createDeepSeekRequest(question: string, apiKey: string, model: string) {
       const messages = [
         { role: "system" as const, content: SYSTEM_PROMPT },
         { role: "user" as const, content: USER_PROMPT_PREFIX + question },
       ];
-  
+
       return {
-        url: OPENAI_API_URL,
+        url: DEEPSEEK_API_URL,
         method: "POST" as const,
-        body: JSON.stringify({
-          model: OPENAI_MODEL,
+        body: encodeJsonBodyBase64({
+          model,
           messages,
           temperature: DEFAULT_TEMPERATURE,
         }),
@@ -150,12 +199,12 @@ import {
         },
       };
     }
-  
-    private handleOpenAIResponse(response: any): GPTResponse {
+
+    private handleDeepSeekResponse(response: any): GPTResponse {
       const bodyText = new TextDecoder().decode(response.body);
       
       if (!ok(response)) {
-        throw new Error(`OpenAI API error: ${response.statusCode} - ${bodyText}`);
+        throw new Error(`DeepSeek API error: ${response.statusCode} - ${bodyText}`);
       }
   
       const parsedResponse = this.parseOpenAIResponse(bodyText);
@@ -173,7 +222,7 @@ import {
       try {
         return JSON.parse(bodyText) as OpenAIResponse;
       } catch (error) {
-        throw new Error(`Failed to parse OpenAI response: ${error.message}`);
+        throw new Error(`Failed to parse DeepSeek response: ${getErrorMessage(error)}`);
       }
     }
   
@@ -181,7 +230,7 @@ import {
       const text = parsedResponse?.choices?.[0]?.message?.content;
       
       if (!text) {
-        throw new Error("Malformed OpenAI response: missing text content");
+        throw new Error("Malformed DeepSeek response: missing text content");
       }
       
       return text;

@@ -263,7 +263,7 @@ export function onLogTrigger(runtime: Runtime<Config>, log: EVMLog): string {
     }
 
     // Step 3: Ask GPT
-    runtime.log("[Step 3] Querying OpenAI GPT...");
+    runtime.log("[Step 3] Querying DeepSeek AI...");
     const gptResult = askGPT(runtime, question);
     const parsed = extractGptJsonOrThrow(gptResult.gptResponse);
 

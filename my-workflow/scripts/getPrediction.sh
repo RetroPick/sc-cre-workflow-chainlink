@@ -2,9 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONFIG_PATH="${1:-"$SCRIPT_DIR/config.staging.json"}"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+CONFIG_PATH="${1:-"$ROOT_DIR/config.staging.json"}"
 MARKET_ID="${2:-0}"
+PREDICTOR="${3:-${PREDICTOR:-}}"
 RPC_URL="${RPC_URL:-https://ethereum-sepolia-rpc.publicnode.com}"
 
 # Load .env from repo root if present
@@ -25,7 +26,12 @@ if [[ -z "$MARKET_ADDRESS" ]]; then
   exit 1
 fi
 
+if [[ -z "$PREDICTOR" ]]; then
+  echo "Missing predictor address. Pass as arg or set PREDICTOR." >&2
+  exit 1
+fi
+
 cast call "$MARKET_ADDRESS" \
-  "getMarket(uint256) returns ((address,uint48,uint48,bool,uint16,uint8,uint256,uint256,string))" \
-  "$MARKET_ID" \
+  "getPrediction(uint256,address) returns ((uint256,uint8,bool))" \
+  "$MARKET_ID" "$PREDICTOR" \
   --rpc-url "$RPC_URL"

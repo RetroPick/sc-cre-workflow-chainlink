@@ -58,7 +58,7 @@ If you want to emit `SettlementRequested`, use the helper script so the
 contract address is always resolved from the workflow config:
 
 ```bash
-bash ./my-workflow/requestSettlement.sh
+bash ./my-workflow/scripts/requestSettlement.sh
 ```
 
 Optional overrides:
@@ -67,7 +67,7 @@ Optional overrides:
 MARKET_ADDRESS=0xYourMarketAddress \
 CRE_ETH_PRIVATE_KEY=0xYourKey \
 RPC_URL=https://ethereum-sepolia-rpc.publicnode.com \
-bash ./my-workflow/requestSettlement.sh ./my-workflow/config.staging.json 0
+bash ./my-workflow/scripts/requestSettlement.sh ./my-workflow/config.staging.json 0
 ```
 
 ## 5. Make a prediction
@@ -75,7 +75,7 @@ bash ./my-workflow/requestSettlement.sh ./my-workflow/config.staging.json 0
 Use the helper script so the contract address and key are resolved consistently:
 
 ```bash
-bash ./my-workflow/predict.sh
+bash ./my-workflow/scripts/predict.sh
 ```
 
 Optional overrides:
@@ -84,7 +84,7 @@ Optional overrides:
 MARKET_ADDRESS=0xYourMarketAddress \
 CRE_ETH_PRIVATE_KEY=0xYourKey \
 RPC_URL=https://ethereum-sepolia-rpc.publicnode.com \
-bash ./my-workflow/predict.sh ./my-workflow/config.staging.json 0 0 0.01ether
+bash ./my-workflow/scripts/predict.sh ./my-workflow/config.staging.json 0 0 0.01ether
 ```
 
 ## 6. Read market data
@@ -92,7 +92,7 @@ bash ./my-workflow/predict.sh ./my-workflow/config.staging.json 0 0 0.01ether
 Use the helper script to read `getMarket` without worrying about `$MARKET_ADDRESS`:
 
 ```bash
-bash ./my-workflow/getMarket.sh
+bash ./my-workflow/scripts/getMarket.sh
 ```
 
 Optional overrides:
@@ -100,7 +100,7 @@ Optional overrides:
 ```bash
 MARKET_ADDRESS=0xYourMarketAddress \
 RPC_URL=https://ethereum-sepolia-rpc.publicnode.com \
-bash ./my-workflow/getMarket.sh ./my-workflow/config.staging.json 0
+bash ./my-workflow/scripts/getMarket.sh ./my-workflow/config.staging.json 0
 ```
 
 ## 7. Read prediction result
@@ -109,7 +109,7 @@ Use the helper script to read a user's prediction:
 
 ```bash
 PREDICTOR=0xYourPredictorAddress \
-bash ./my-workflow/getPrediction.sh ./my-workflow/config.staging.json 0
+bash ./my-workflow/scripts/getPrediction.sh ./my-workflow/config.staging.json 0
 ```
 
 Optional overrides:
@@ -118,5 +118,5 @@ Optional overrides:
 MARKET_ADDRESS=0xYourMarketAddress \
 PREDICTOR=0xYourPredictorAddress \
 RPC_URL=https://ethereum-sepolia-rpc.publicnode.com \
-bash ./my-workflow/getPrediction.sh ./my-workflow/config.staging.json 0
+bash ./my-workflow/scripts/getPrediction.sh ./my-workflow/config.staging.json 0
 ```
