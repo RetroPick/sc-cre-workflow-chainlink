@@ -69,3 +69,54 @@ CRE_ETH_PRIVATE_KEY=0xYourKey \
 RPC_URL=https://ethereum-sepolia-rpc.publicnode.com \
 bash ./my-workflow/requestSettlement.sh ./my-workflow/config.staging.json 0
 ```
+
+## 5. Make a prediction
+
+Use the helper script so the contract address and key are resolved consistently:
+
+```bash
+bash ./my-workflow/predict.sh
+```
+
+Optional overrides:
+
+```bash
+MARKET_ADDRESS=0xYourMarketAddress \
+CRE_ETH_PRIVATE_KEY=0xYourKey \
+RPC_URL=https://ethereum-sepolia-rpc.publicnode.com \
+bash ./my-workflow/predict.sh ./my-workflow/config.staging.json 0 0 0.01ether
+```
+
+## 6. Read market data
+
+Use the helper script to read `getMarket` without worrying about `$MARKET_ADDRESS`:
+
+```bash
+bash ./my-workflow/getMarket.sh
+```
+
+Optional overrides:
+
+```bash
+MARKET_ADDRESS=0xYourMarketAddress \
+RPC_URL=https://ethereum-sepolia-rpc.publicnode.com \
+bash ./my-workflow/getMarket.sh ./my-workflow/config.staging.json 0
+```
+
+## 7. Read prediction result
+
+Use the helper script to read a user's prediction:
+
+```bash
+PREDICTOR=0xYourPredictorAddress \
+bash ./my-workflow/getPrediction.sh ./my-workflow/config.staging.json 0
+```
+
+Optional overrides:
+
+```bash
+MARKET_ADDRESS=0xYourMarketAddress \
+PREDICTOR=0xYourPredictorAddress \
+RPC_URL=https://ethereum-sepolia-rpc.publicnode.com \
+bash ./my-workflow/getPrediction.sh ./my-workflow/config.staging.json 0
+```
