@@ -51,3 +51,21 @@ Example: For workflow named `hello-world` the command would be:
 ```bash
 cre workflow simulate ./hello-world --target=staging-settings
 ```
+
+## 4. Trigger settlement (Log Trigger)
+
+If you want to emit `SettlementRequested`, use the helper script so the
+contract address is always resolved from the workflow config:
+
+```bash
+bash ./my-workflow/requestSettlement.sh
+```
+
+Optional overrides:
+
+```bash
+MARKET_ADDRESS=0xYourMarketAddress \
+CRE_ETH_PRIVATE_KEY=0xYourKey \
+RPC_URL=https://ethereum-sepolia-rpc.publicnode.com \
+bash ./my-workflow/requestSettlement.sh ./my-workflow/config.staging.json 0
+```

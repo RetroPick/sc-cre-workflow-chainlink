@@ -7,7 +7,7 @@ import { onLogTrigger } from "./logCallback";
 
 // Config type (matches config.staging.json structure)
 type Config = {
-  gptModel: string;
+  geminiModel: string;
   evms: Array<{
     marketAddress: string;
     chainSelectorName: string;

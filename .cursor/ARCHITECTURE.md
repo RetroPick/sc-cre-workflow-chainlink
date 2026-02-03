@@ -97,3 +97,109 @@ RetroPick is a decentralized, real-time prediction market that combines gasless 
 ---
 
 Let me know if you'd like code snippets for the CRE trigger or Yellow session logic next.
+
+
+# RetroPick Monorepo Architecture (Fullstack, Modular, Chainlink-Enabled)
+
+## Overview
+
+RetroPick is structured as a fullstack monorepo optimized for:
+
+* Modular prediction market development
+* Fast iteration on Chainlink Functions (CRE)
+* Type-safe React frontend and Foundry-based Solidity backend
+* Seamless off-chain/on-chain interactions
+
+---
+
+## Root Layout
+
+```
+RETRoPICK/
+├── contracts/              # On-chain logic (Foundry-based)
+├── frontend/               # React + Vite UI with hooks, pages, and logic
+├── workflow/               # Chainlink Functions (CRE) job logic & YAMLs
+├── scripts/                # Shared deployment, ABI sync, and CLI tools
+├── .env / .env.example     # Shared environment configuration
+├── README.md               # Monorepo-level documentation
+```
+
+---
+
+## 1. `contracts/` (Foundry Solidity Suite)
+
+```
+contracts/
+├── src/
+│   ├── interfaces/                 # Shared interfaces (CRE, Market APIs)
+│   │   ├── IReceiver.sol
+│   │   └── ReceiverTemplate.sol
+│   ├── PredictionMarket.sol       # Core betting & settlement contract
+│   └── utils/                     # Math libraries, modifiers, etc.
+├── test/                           # Foundry unit tests
+├── foundry.toml                   # Foundry config
+├── README.md                      # Contract usage & build instructions
+```
+
+---
+
+## 2. `frontend/` (Vite + TypeScript + Tailwind)
+
+```
+frontend/
+├── src/
+│   ├── assets/             # Images, logos, branding
+│   ├── components/         # UI components (Button, Card, Chart)
+│   ├── contexts/           # Global state management
+│   ├── data/               # Chain metadata, configs
+│   ├── hooks/              # Reusable composables (wallet, odds, fetchers)
+│   ├── lib/                # Chain helpers, contract interactions
+│   ├── pages/              # Routed views (Home, Market, Result)
+│   ├── services/           # API logic (Arc/Yellow integrations)
+│   ├── types/              # Global TypeScript definitions
+│   └── test/               # Vitest UI and logic tests
+├── public/                 # Static hosting
+├── tailwind.config.ts      # Styling setup
+├── vite.config.ts          # Build tooling
+├── package.json            # Frontend dependencies
+├── README.md               # Frontend usage
+```
+
+---
+
+## 3. `workflow/` (Chainlink CRE Job Definitions)
+
+```
+workflow/
+├── workflow.yaml           # Chainlink job definition
+├── main.ts                 # Main logic for off-chain fetch & parse
+├── logCallback.ts          # Debug logger for response
+├── httpCallback.ts         # Format outbound result
+├── tmp.wasm                # Wasm output from bundler
+├── tsconfig.json           # Typed job config
+├── README.md               # How to run CRE jobs locally/test
+```
+
+---
+
+## 4. `scripts/` (Utilities)
+
+```
+scripts/
+├── deploy.ts               # Deploy contracts to Arc
+├── faucet.ts               # Dispense testnet USDC
+├── export-abi.ts           # Auto-export ABI to frontend
+├── settle-market.ts        # CLI: Trigger session resolution
+├── README.md               # Script usage & flags
+```
+
+---
+
+## Recommended Improvements
+
+* [ ] Add typegen: auto-generate TypeScript contract types
+* [ ] Integrate `dotenv` across frontend/backend/scripts for shared config
+* [ ] Add CRE test harness in contracts/test/integration/
+* [ ] Add CI pipeline for auto-preview frontend + CRE deployment
+
+Let me know if you’d like codegen added for contract bindings or GraphQL subgraph integration next!
