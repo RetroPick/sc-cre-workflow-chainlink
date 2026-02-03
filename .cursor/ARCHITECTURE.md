@@ -1,5 +1,37 @@
 # RetroPick: Full Architecture with CRE Integration
 
+SettlementRequested Event
+         │
+         ▼
+    Log Trigger
+         │
+         ▼
+┌────────────────────┐
+│ Step 1: Decode     │
+│ Event data         │
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│ Step 2: EVM Read   │
+│ Get market details │
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│ Step 3: HTTP       │
+│ Query Gemini AI    │
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐
+│ Step 4: EVM Write  │
+│ Submit settlement  │
+└────────┬───────────┘
+         │
+         ▼
+    Return txHash
+
 ## Overview
 
 RetroPick is a decentralized, real-time prediction market that combines gasless state channel betting with stablecoin-backed settlement and trusted outcome resolution. This architecture combines:

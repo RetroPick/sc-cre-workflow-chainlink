@@ -1,5 +1,42 @@
 # RetroPick: Full Architecture with CRE Integration
 
+{
+  "name": "RetroPick",
+  "description": "RetroPick is a decentralized real-time prediction market built on Yellow Network state channels (gasless off-chain trading), Arc Network (USDC-native settlement), and Chainlink Functions (CRE) for off-chain outcome resolution. It supports auto-generated markets from free APIs.",
+  "key_components": {
+    "contracts": [
+      "Market.sol – handles prediction logic, betting, and state transitions",
+      "CREConsumer.sol – receives Chainlink Functions resolution results",
+      "MarketFactory.sol – deploys new market instances from backend or CRE workflows",
+      "Treasury.sol – manages user collateral and payouts in USDC"
+    ],
+    "frontend": "Vite + TypeScript UI with wallet integration and Yellow SDK session manager",
+    "backend": "Express + TypeScript app that manages Yellow session, market lifecycle, and triggers settlement jobs",
+    "workflow": "Chainlink Functions (CRE) jobs that ingest APIs (news, prices) → create prediction markets → resolve them"
+  },
+  "workflow_pipeline": {
+    "source": "API feeds (CoinGecko, NewsAPI, GitHub Trends)",
+    "transform": "Builders validate/convert feed into prediction market schema",
+    "job": "CRE executes fetch → validates → triggers Arc settlement via callback",
+    "autonomy": "Markets can be spawned dynamically without user prompt"
+  },
+  "architecture_keywords": [
+    "state channels",
+    "Chainlink Functions",
+    "USDC-native gas",
+    "cross-chain liquidity",
+    "real-time off-chain execution",
+    "verifiable resolution"
+  ],
+  "innovations": [
+    "Autonomous market generation from free APIs",
+    "Real-time betting via state channels",
+    "Deterministic USDC settlement",
+    "Composable prediction feeds (news, crypto, governance)"
+  ]
+}
+
+
 ## Overview
 
 RetroPick is a decentralized, real-time prediction market that combines gasless state channel betting with stablecoin-backed settlement and trusted outcome resolution. This architecture combines:
