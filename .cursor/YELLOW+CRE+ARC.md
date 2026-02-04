@@ -152,52 +152,83 @@ Figure: Original my-workflow directory layout (Chainlink CRE TypeScript template
 In the existing my-workflow (Chainlink CRE) repo, the directory follows the demo template’s pattern[1]. It includes top-level workflow entrypoints (main.ts, callbacks), Chainlink config files (config.staging.json, config.production.json), and folders for data sources (sources/), jobs (jobs/), builders, and utilities. To integrate Yellow state channels and Circle’s Arc/BridgeKit, we propose a refactored structure that clearly separates concerns and adds new modules.
 Refactored Directory Structure
 We restructure my-workflow to group related functionality. For example:
-my-workflow/
-├── bun.lobk
-├── config.production.json
-├── config.staging.json
-├── gpt.ts
-├── httpCallback.ts
-├── logCallback.ts
-├── main.ts
-├── src/
-│   ├── builders/ 
-│   │   ├── buildFinalStateRequest.ts      
-│   │   ├── generateMarket.ts  
-│   │   ├── schemaValidator.ts  
-│   ├── chainlink/           # CRE workflow handlers and trigger logic
-│   │   ├── triggers.ts      # Cron/log trigger configurations
-│   │   └── settlement.ts    # On-chain market settlement logic
-│   ├── yellow/              # Yellow Network state-channel integration
-│   │   ├── nitroliteClient.ts  # Init Nitrolite SDK client
-│   │   ├── auth.ts            # Session key and auth messages
-│   │   ├── channel.ts         # Channel open/resize/close logic
-│   │   └── wsListener.ts      # WebSocket handlers for Yellow events
-│   ├── circle/             # Arc chain and BridgeKit integration
-│   │   ├── bridgeKit.ts    # BridgeKit setup and calls
-│   │   ├── circleAdapter.ts # Circle wallet adapter setup (Viem/ethers)
-│   │   └── arcClient.ts    # Arc chain RPC client (if needed)
-│   ├── oracles/            # Prediction outcome or external data oracles
-│   │   └── predictionOracle.ts
-│   ├── jobs/               # Scheduled tasks (e.g. bridging jobs)
-│   │   └── bridgeJob.ts
-│   │   ├── marketCreator.ts
-│   │   ├── sessionSnapshot.ts    
-│   ├── sources/ 
-│   │   ├── coinGecko.ts etc based on file
-│   ├── utils/              # Shared utilities (e.g. config loaders)
-│   └── types/              # TypeScript types/interfaces
-├── config/                 # CRE configs
-│   ├── project.yaml        # (optional) global CRE settings
-│   ├── secrets.yaml        # secret names
-│   └── workflow.yaml       # workflow-specific overrides (entrypoints, timeouts)
-├── contracts/              # (Optional) ABI or generated bindings
-│   └── abi/                # If needed for EVMClient bindings
-├── test/                   # Integration/unit tests
-├── package.json
-├── tsconfig.json
-└── README.md
-In this layout, Chainlink CRE code (inside src/chainlink/) handles triggers and on-chain writes/reads. The Yellow and Circle integrations are isolated into their own modules for clarity. We retain workflow.yaml to point at src/chainlink/main.ts (the entrypoint), and use config/ for CRE configuration per environment[1].
+
+// NOTE: The repo currently uses the flat CRE template layout (no src/ folder).
+// The refactor below is a future plan; the list immediately below reflects the current structure.
+retropick/
+├─ apps/
+│  ├─ web/                       # (your current frontend/)
+│  │  ├─ src/
+│  │  ├─ package.json
+│  │  └─ vite.config.ts
+│  │
+│  ├─ relayer/                   # NEW: Yellow state trading engine
+│  │  ├─ src/
+│  │  │  ├─ yellow/              # nitrolite connection + session/channel
+│  │  │  ├─ matching/            # netting, orderbook, risk checks
+│  │  │  ├─ api/                 # http/ws API for the frontend
+│  │  │  ├─ settlement/          # build final state payload for contracts
+│  │  │  └─ index.ts
+│  │  ├─ package.json
+│  │  └─ README.md
+│  │
+│  └─ workflow/                  # (your current my-workflow/)
+│     ├─ main.ts
+│     ├─ logCallback.ts
+│     ├─ httpCallback.ts
+│     ├─ workflow.yaml
+│     ├─ jobs/
+│     ├─ sources/
+│     ├─ builders/
+│     ├─ package.json
+│     └─ config.*.json
+│
+├─ packages/
+│  ├─ contracts/                 # (your current contracts/)
+│  │  ├─ src/
+│  │  │  ├─ core/
+│  │  │  ├─ interfaces/
+│  │  │  └─ oracle/
+│  │  ├─ test/
+│  │  └─ foundry.toml
+│  │
+│  ├─ shared/                    # NEW: shared types + ABIs
+│  │  ├─ src/
+│  │  │  ├─ abi/                 # generated ABIs (PredictionMarket, Treasury...)
+│  │  │  ├─ types/               # Market, SessionPayload, enums
+│  │  │  └─ chains.ts            # Arc/Base/Sepolia configs
+│  │  └─ package.json
+│  │
+│  └─ sdk/                       # NEW: optional client SDK for your app
+│     ├─ src/
+│     │  ├─ marketClient.ts
+│     │  ├─ relayerClient.ts
+│     │  └─ index.ts
+│     └─ package.json
+│
+├─ infra/
+│  ├─ docker-compose.yml         # relayer + redis/db if needed
+│  └─ nginx.conf                 # optional
+│
+├─ scripts/
+│  ├─ generate-abi.ts            # export ABIs from contracts to shared/
+│  └─ deploy.ts                  # optional multi-chain deploy script
+│
+├─ .env.example
+├─ README.md                     # single source of truth diagram + demo steps
+└─ project.yaml                  # (CRE project root config)
+
+Planned refactor (future): move workflow handlers and integrations into a src/ tree
+(e.g., src/chainlink, src/yellow, src/circle) once Yellow SDK and Arc modules are added.
+In that future layout, workflow.yaml would point to the new src entrypoint.
+
+Module mapping (current repo)
+The concepts in this doc map to the current flat layout as follows:
+- CRE entrypoint and triggers: my-workflow/main.ts, my-workflow/logCallback.ts, my-workflow/jobs/scheduleTrigger.ts
+- Yellow session finalization (CRE → chain): my-workflow/jobs/sessionSnapshot.ts + my-workflow/builders/buildFinalStateRequest.ts
+- Yellow SDK client: my-workflow/yellow/nitroliteClient.ts, auth.ts, channel.ts, wsListener.ts
+- Arc + BridgeKit: my-workflow/circle/bridgeKit.ts, circleAdapter.ts, arcClient.ts
+- Oracle fetchers (optional): my-workflow/oracles/predictionOracle.ts
 Integrating Yellow Network (State Channels)
 Yellow Network provides off-chain state channels for instant, gas-free transactions. Yellow’s NitroLite protocol lets us lock funds in on-chain custody contracts and then conduct unlimited off-chain transfers[2]. In practice, we would use the @erc7824/nitrolite SDK within yellow/ modules to manage channels. For example, initializing the Nitrolite client (per Yellow Quickstart) looks like:
 import { NitroliteClient, WalletStateSigner, createECDSAMessageSigner } from '@erc7824/nitrolite';
@@ -233,6 +264,10 @@ await client.resizeChannel({ resizeState, proofStates });
 With these modules, our CRE workflow handlers can programmatically open channels for a user, deposit funds into Yellow’s unified balance, and later transfer funds within the channel. Yellow’s state channels give “real-time betting with instant settlement”[7]: users can place unlimited off-chain bets with zero gas, then settle the final outcome on-chain (as shown by Re:Bet’s use-case[8][9]). Concretely, our yellow/transfer.ts could implement off-chain bet transfers (e.g. transferring USDC within the channel’s state) and capture channel states for settlement.
 Key Yellow concepts we leverage: Yellow’s unified balance across chains[10] and custody contract. For example, any supported chain (including Arc) can deposit USDC into Yellow’s Custody contract, moving funds into the unified off-chain balance[11][12]. (The docs illustrate depositing on Polygon/Base and withdrawing to Arbitrum, which generalizes to Arc: “… deposit tokens into the Custody Contract on any supported chain… and withdraw back through the Custody Contract to any supported chain.”[11].) Our code will use client.allocateAmount or createResizeChannelMessage to move on-chain USDC into Yellow, making it available off-chain. Then, off-chain sessions (managed in yellow/channel.ts) allow high-frequency bets or payments with sub-second finality and no gas[13].
 Whenever on-chain settlement is required (market resolution or user exit), our CRE workflow can use Yellow’s client.closeChannel and client.withdrawal to settle the channel on-chain[14]. For example, after betting closes, the final channel state (including all bets) is pushed to the on-chain Yellow “custody” contract, and funds are withdrawn to users’ wallets. The Solidity side would involve a Yellow-compatible consumer contract (e.g. YellowSessionManager.sol in Re:Bet) that handles deposits and enforces outcomes[9].
+
+CRE payload format (current implementation): session finalization reports are sent with a 0x03 prefix and ABI-encoded payload:
+SessionPayload = (uint256 marketId, bytes32 sessionId, address[] participants, uint256[] balances, bytes[] signatures, bytes backendSignature).
+The CRE report route is CREReceiver → OracleCoordinator.submitSession → SettlementRouter.finalizeSession → SessionFinalizer.finalizeSession.
 Circle Arc Chain and BridgeKit (USDC Custody)
 Circle’s Arc is an EVM-compatible chain designed for Circle’s own USDC liquidity. We integrate Arc as the on-chain settlement layer for USDC and use Circle’s BridgeKit to move USDC between chains (via CCTP). BridgeKit abstracts Circle’s Cross-Chain Transfer Protocol, which securely burns and mints USDC across chains[15]. For example, the docs describe using BridgeKit to send USDC from an EVM chain like Ethereum Sepolia to Arc Testnet[15].
 In practice, our circle/bridgeKit.ts module would initialize BridgeKit and an adapter for the user’s wallet (using @circle-fin/adapter-circle-wallets or a Viem provider). A transfer call looks like:
@@ -273,6 +308,13 @@ Key modules and jobs in this design include:
 •	Chainlink Triggers: As mentioned, Cron and Log triggers in chainlink/triggers.ts schedule these jobs. For example, a Cron trigger might run the Bridge job every hour, while an EVM Log trigger could start settlement as soon as MarketResolved is emitted by the Arc contract.
 •	Config and Secrets: The workflow.yaml will specify necessary RPC URLs and private keys for both the Arc and Ethereum networks (for Yellow on Sepolia and Arc, for example). We’ll use CRE’s secrets.yaml to reference wallet keys (e.g. one key for Yellow on Sepolia, one for Circle wallet on Arc).
 Throughout these modules, all off-chain transfers rely on Yellow’s SDK calls and all on-chain writes use Viem/Ethers via CRE (for example, using Viem’s encodeFunctionData to call the market contract and Yellow’s custody contract as needed[21]). By decoupling concerns in our folder layout, each piece (Yellow channel mgmt, Arc bridging, CRE triggers) can be developed and tested independently.
+
+Sandbox testing checklist (starter)
+1. Run CRE workflow locally with mock config (config.staging.json) and confirm cron handlers execute.
+2. Use a mocked Yellow session payload in yellowSessions to trigger sessionSnapshot → CREReceiver.
+3. Validate SessionFinalizer payouts in Foundry tests (YellowSessionFlow.t.sol).
+4. Manually exercise logCallback settlement on a test market event.
+5. (Optional) Stub BridgeKit transfers via bridgeJob to verify Arc config wiring.
 Summary
 By refactoring my-workflow into dedicated modules for Yellow and Circle Arc, we create a hybrid architecture: Yellow state channels provide fast, gasless payments, while the Arc chain (via Circle’s USDC) provides secure on-chain settlement. Chainlink CRE remains the orchestration layer with scheduled triggers and oracles. This allows a prediction market to offer “unlimited off-chain bets” with instant settlement[8], yet enforce outcomes on a public ledger. The new directory structure and integration code (shown above) make clear where Yellow’s off-chain sessions link to Arc’s on-chain custody, and where BridgeKit routes USDC across chains. Together, these components enable a high-throughput, cross-chain prediction market: Yellow for high-frequency liquidity, Arc and BridgeKit for cross-chain USDC custody, and Chainlink CRE for final settlement and coordination[7][15].
 Sources: Official Yellow docs (Architecture & Quickstart)[2][3], Circle’s BridgeKit/CCTP guides[15][16], Chainlink CRE templates and trigger reference[1][19], and example prediction-market implementation (Re:Bet)[8][22].

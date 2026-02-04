@@ -4,7 +4,8 @@
   "main": "dist/main.js",
   "private": true,
   "scripts": {
-    "postinstall": "bunx cre-setup"
+    "postinstall": "bunx cre-setup",
+    "cre-compile": "bun build --outdir dist --target bun main.ts tmp.wasm"
   },
   "license": "UNLICENSED",
   "dependencies": {
