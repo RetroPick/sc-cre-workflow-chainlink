@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import {ReceiverTemplate} from "../interfaces/ReceiverTemplate.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title PredictionMarket
 /// @notice A simplified prediction market for CRE bootcamp.
@@ -76,11 +77,17 @@ contract PredictionMarket is ReceiverTemplate {
     mapping(uint256 marketId => uint256[]) internal timelinePools;
     mapping(uint256 marketId => uint8) public typedOutcomeIndex;
     address public marketFactory;
+    IERC20 public immutable TOKEN;
+
+    /// @notice ERC-20 token used for predictions and payouts.
+    address public constant TOKEN_ADDRESS = 0x3600000000000000000000000000000000000000;
 
     /// @notice Constructor sets the Chainlink Forwarder address for security
     /// @param _forwarderAddress The address of the Chainlink KeystoneForwarder contract
     /// @dev For Sepolia testnet, use: 0x15fc6ae953e024d975e77382eeec56a9101f9f88
-    constructor(address _forwarderAddress) ReceiverTemplate(_forwarderAddress) {}
+    constructor(address _forwarderAddress) ReceiverTemplate(_forwarderAddress) {
+        TOKEN = IERC20(TOKEN_ADDRESS);
+    }
 
     /// @notice Set the MarketFactory address allowed to create markets on behalf of users.
     function setMarketFactory(address factory) external onlyOwner {
@@ -226,59 +233,63 @@ contract PredictionMarket is ReceiverTemplate {
     /// @notice Make a prediction on a market.
     /// @param marketId The ID of the market.
     /// @param prediction The prediction (Yes or No).
-    function predict(uint256 marketId, Prediction prediction) external payable {
+    function predict(uint256 marketId, Prediction prediction, uint256 amount) external {
         Market memory m = markets[marketId];
 
         if (m.creator == address(0)) revert MarketDoesNotExist();
         if (m.settled) revert MarketAlreadySettled();
         if (marketTypeById[marketId] != MarketType.Binary) revert InvalidMarketType();
-        if (msg.value == 0) revert InvalidAmount();
+        if (amount == 0) revert InvalidAmount();
 
         UserPrediction memory userPred = predictions[marketId][msg.sender];
         if (userPred.amount != 0) revert AlreadyPredicted();
 
         predictions[marketId][msg.sender] = UserPrediction({
-            amount: msg.value,
+            amount: amount,
             prediction: prediction,
             claimed: false
         });
 
         if (prediction == Prediction.Yes) {
-            markets[marketId].totalYesPool += msg.value;
+            markets[marketId].totalYesPool += amount;
         } else {
-            markets[marketId].totalNoPool += msg.value;
+            markets[marketId].totalNoPool += amount;
         }
 
-        emit PredictionMade(marketId, msg.sender, prediction, msg.value);
+        if (!TOKEN.transferFrom(msg.sender, address(this), amount)) revert TransferFailed();
+
+        emit PredictionMade(marketId, msg.sender, prediction, amount);
     }
 
     /// @notice Make a prediction on a categorical or timeline market.
-    function predictOutcome(uint256 marketId, uint8 outcomeIndex) external payable {
+    function predictOutcome(uint256 marketId, uint8 outcomeIndex, uint256 amount) external {
         Market memory m = markets[marketId];
 
         if (m.creator == address(0)) revert MarketDoesNotExist();
         if (m.settled) revert MarketAlreadySettled();
         if (marketTypeById[marketId] == MarketType.Binary) revert InvalidMarketType();
-        if (msg.value == 0) revert InvalidAmount();
+        if (amount == 0) revert InvalidAmount();
 
         TypedPrediction memory userPred = typedPredictions[marketId][msg.sender];
         if (userPred.amount != 0) revert AlreadyPredicted();
 
         if (marketTypeById[marketId] == MarketType.Categorical) {
             if (outcomeIndex >= categoricalPools[marketId].length) revert InvalidOutcomeIndex();
-            categoricalPools[marketId][outcomeIndex] += msg.value;
+            categoricalPools[marketId][outcomeIndex] += amount;
         } else {
             if (outcomeIndex >= timelinePools[marketId].length) revert InvalidOutcomeIndex();
-            timelinePools[marketId][outcomeIndex] += msg.value;
+            timelinePools[marketId][outcomeIndex] += amount;
         }
 
         typedPredictions[marketId][msg.sender] = TypedPrediction({
-            amount: msg.value,
+            amount: amount,
             outcomeIndex: outcomeIndex,
             claimed: false
         });
 
-        emit PredictionMadeTyped(marketId, msg.sender, outcomeIndex, msg.value);
+        if (!TOKEN.transferFrom(msg.sender, address(this), amount)) revert TransferFailed();
+
+        emit PredictionMadeTyped(marketId, msg.sender, outcomeIndex, amount);
     }
 
     // ================================================================
@@ -378,8 +389,7 @@ contract PredictionMarket is ReceiverTemplate {
             if (winningPoolBinary == 0) revert NothingToClaim();
             uint256 payoutBinary = (userPred.amount * totalPoolBinary) / winningPoolBinary;
 
-            (bool successBinary,) = msg.sender.call{value: payoutBinary}("");
-            if (!successBinary) revert TransferFailed();
+            if (!TOKEN.transfer(msg.sender, payoutBinary)) revert TransferFailed();
 
             emit WinningsClaimed(marketId, msg.sender, payoutBinary);
             return;
@@ -392,31 +402,30 @@ contract PredictionMarket is ReceiverTemplate {
 
         typedPredictions[marketId][msg.sender].claimed = true;
 
-        uint256 totalPool = 0;
-        uint256 winningPool = 0;
+        uint256 totalPoolTyped = 0;
+        uint256 winningPoolTyped = 0;
         if (marketTypeById[marketId] == MarketType.Categorical) {
             uint256[] storage pools = categoricalPools[marketId];
             for (uint256 i = 0; i < pools.length; i++) {
-                totalPool += pools[i];
+                totalPoolTyped += pools[i];
             }
-            winningPool = pools[typedOutcomeIndex[marketId]];
+            winningPoolTyped = pools[typedOutcomeIndex[marketId]];
         } else if (marketTypeById[marketId] == MarketType.Timeline) {
             uint256[] storage pools = timelinePools[marketId];
             for (uint256 i = 0; i < pools.length; i++) {
-                totalPool += pools[i];
+                totalPoolTyped += pools[i];
             }
-            winningPool = pools[typedOutcomeIndex[marketId]];
+            winningPoolTyped = pools[typedOutcomeIndex[marketId]];
         } else {
             revert InvalidMarketType();
         }
 
-        if (winningPool == 0) revert NothingToClaim();
-        uint256 payout = (typedPred.amount * totalPool) / winningPool;
+        if (winningPoolTyped == 0) revert NothingToClaim();
+        uint256 payoutTyped = (typedPred.amount * totalPoolTyped) / winningPoolTyped;
 
-        (bool success,) = msg.sender.call{value: payout}("");
-        if (!success) revert TransferFailed();
+        if (!TOKEN.transfer(msg.sender, payoutTyped)) revert TransferFailed();
 
-        emit WinningsClaimed(marketId, msg.sender, payout);
+        emit WinningsClaimed(marketId, msg.sender, payoutTyped);
     }
 
     // ================================================================

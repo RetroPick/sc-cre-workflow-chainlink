@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import {ISettlementRouter} from "../interfaces/ISettlementRouter.sol";
+import {ISessionFinalizer} from "../interfaces/ISessionFinalizer.sol";
 import {Errors} from "../utils/Errors.sol";
 
 interface IPredictionMarketReceiver {
@@ -58,8 +59,9 @@ contract SettlementRouter is ISettlementRouter {
         emit MarketSettled(market, marketId, outcomeIndex, confidence);
     }
 
-    function finalizeSession(bytes calldata payload) external onlySessionFinalizer {
+    function finalizeSession(bytes calldata payload) external override onlyOracleCoordinator {
+        if (sessionFinalizer == address(0)) revert Errors.InvalidAddress();
+        ISessionFinalizer(sessionFinalizer).finalizeSession(payload);
         emit MarketSettled(address(0), 0, 0, 0);
-        payload;
     }
 }

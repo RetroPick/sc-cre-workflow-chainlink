@@ -22,6 +22,10 @@ contract CREReceiver is ReceiverTemplate {
     }
 
     function _processReport(bytes calldata report) internal override {
+        if (report.length > 0 && report[0] == 0x03) {
+            oracleCoordinator.submitSession(report[1:]);
+            return;
+        }
         (address market, uint256 marketId, uint8 outcomeIndex, uint16 confidence) =
             abi.decode(report, (address, uint256, uint8, uint16));
         oracleCoordinator.submitResult(market, marketId, outcomeIndex, confidence);

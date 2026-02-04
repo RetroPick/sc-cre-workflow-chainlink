@@ -20,14 +20,14 @@ contract OracleCoordinator {
         _;
     }
 
+    function _onlyReceiver() internal view {
+        if (msg.sender != creReceiver) revert Errors.Unauthorized();
+    }
+
     function setCreReceiver(address receiver) external {
         address previous = creReceiver;
         creReceiver = receiver;
         emit CREReceiverUpdated(previous, receiver);
-    }
-
-    function _onlyReceiver() internal view {
-        if (msg.sender != creReceiver) revert Errors.Unauthorized();
     }
 
     function setSettlementRouter(address router) external {
@@ -51,5 +51,9 @@ contract OracleCoordinator {
             if (!ok) revert Errors.InvalidConfidence();
         }
         ISettlementRouter(settlementRouter).settleMarket(market, marketId, outcomeIndex, confidence);
+    }
+
+    function submitSession(bytes calldata payload) external onlyReceiver {
+        ISettlementRouter(settlementRouter).finalizeSession(payload);
     }
 }

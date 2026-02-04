@@ -105,8 +105,8 @@ contract MarketFactory is ReceiverTemplate {
             _validateInputV2(inputV2);
             usedExternalIds[inputV2.externalId] = true;
 
-            uint256 createdMarketId = _createTypedMarket(inputV2);
-            marketMetadata[createdMarketId] = MarketMetadata({
+            uint256 marketIdV2 = _createTypedMarket(inputV2);
+            marketMetadata[marketIdV2] = MarketMetadata({
                 requestedBy: inputV2.requestedBy,
                 resolveTime: inputV2.resolveTime,
                 category: inputV2.category,
@@ -117,7 +117,7 @@ contract MarketFactory is ReceiverTemplate {
             });
 
             emit MarketSpawned(
-                createdMarketId,
+                marketIdV2,
                 inputV2.requestedBy,
                 inputV2.question,
                 inputV2.resolveTime,
@@ -126,7 +126,7 @@ contract MarketFactory is ReceiverTemplate {
                 inputV2.externalId
             );
             emit MarketSpawnedTyped(
-                createdMarketId,
+                marketIdV2,
                 inputV2.requestedBy,
                 inputV2.marketType,
                 _outcomesCount(inputV2),
@@ -205,8 +205,10 @@ contract MarketFactory is ReceiverTemplate {
         }
 
         if (input.signature.length > 0) {
-            bytes32 outcomesHash = _hashBytes(abi.encode(input.outcomes));
-            bytes32 windowsHash = _hashBytes(abi.encode(input.timelineWindows));
+            // forge-lint: disable-next-line(asm-keccak256)
+            bytes32 outcomesHash = keccak256(abi.encode(input.outcomes));
+            // forge-lint: disable-next-line(asm-keccak256)
+            bytes32 windowsHash = keccak256(abi.encode(input.timelineWindows));
             bytes32 digest = keccak256(
                 abi.encodePacked(
                     address(this),
@@ -248,11 +250,5 @@ contract MarketFactory is ReceiverTemplate {
             return uint8(input.outcomes.length);
         }
         return 2;
-    }
-
-    function _hashBytes(bytes memory data) internal pure returns (bytes32 digest) {
-        assembly {
-            digest := keccak256(add(data, 0x20), mload(data))
-        }
     }
 }

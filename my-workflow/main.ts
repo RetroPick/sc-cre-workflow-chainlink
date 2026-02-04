@@ -5,6 +5,7 @@ import { keccak256, toHex } from "viem";
 import { onHttpTrigger } from "./httpCallback";
 import { onLogTrigger } from "./logCallback";
 import { onScheduleTrigger } from "./jobs/scheduleTrigger";
+import { onSessionSnapshot } from "./jobs/sessionSnapshot";
 import type { WorkflowConfig } from "./types/config";
 
 const SETTLEMENT_REQUESTED_SIGNATURE = "SettlementRequested(uint256,string)";
@@ -35,6 +36,8 @@ const initWorkflow = (config: WorkflowConfig) => {
   return [
     // Autonomous Cron Trigger - Feed-driven Market Creation
     cre.handler(cronTrigger, onScheduleTrigger),
+    // Yellow sessions - Finalization snapshots
+    cre.handler(cronTrigger, onSessionSnapshot),
     // Day 1: HTTP Trigger - Market Creation
     cre.handler(httpTrigger, onHttpTrigger),
     
