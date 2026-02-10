@@ -1,0 +1,10 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+remappings = [
+    "@openzeppelin/=lib/openzeppelin-contracts/"
+]
+fs_permissions = [
+    { access = "read-write", path = "/home/asyam321/Project/RetroPick/RetroPick/.cursor/debug.log" }
+]
