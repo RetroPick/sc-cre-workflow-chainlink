@@ -1,4 +1,5 @@
 {
+  "relayerUrl": "https://YOUR-RELAYER-URL",
   "gptModel": "deepseek-chat",
   "useMockAi": false,
   "cronSchedule": "*/15 * * * *",

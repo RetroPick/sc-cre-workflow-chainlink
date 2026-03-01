@@ -3,6 +3,7 @@ import type { FeedConfig } from "./feed";
 export type WorkflowConfig = {
   gptModel?: string;
   deepseekApiKey?: string;
+  relayerUrl?: string; // e.g. https://your-relayer.up.railway.app
   useMockAi?: boolean;
   mockAiResponse?: string;
   cronSchedule?: string;

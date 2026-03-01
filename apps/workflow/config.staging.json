@@ -1,4 +1,5 @@
 {
+  "relayerUrl": "https://YOUR-RELAYER-URL",
   "gptModel": "deepseek-chat",
   "deepseekApiKey": "sk-f619cc34a25842b3ba3bf9963d0fa816",
   "useMockAi": true,
