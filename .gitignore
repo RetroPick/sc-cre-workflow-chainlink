@@ -33,3 +33,7 @@ pnpm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# IDE / tooling
+.docs
+.cursor
