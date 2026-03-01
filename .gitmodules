@@ -1,3 +1,6 @@
 [submodule "packages/contracts"]
 	path = packages/contracts
 	url = git@github.com:mAsyamJ/ShadowPool.git
+[submodule "apps/relayer"]
+	path = apps/relayer
+	url = git@github.com:RetroPick/backend-relayer.git
