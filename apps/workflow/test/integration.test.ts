@@ -1,6 +1,10 @@
 import { generateMarketInput } from "../builders/generateMarket";
 import { validateFeedItem, validateMarketInput } from "../builders/schemaValidator";
 import type { FeedItem } from "../types/feed";
+import { encodeOutcomeReport, encodePublishReport, type DraftPublishParams } from "../contracts/reportFormats";
+import { computeParamsHash } from "../contracts/publishFromDraft";
+import { validateWorkflowConfig, shouldRegisterLogTrigger, shouldRegisterScheduleResolver } from "../config/schema";
+import type { WorkflowConfig } from "../types/config";
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -26,4 +30,70 @@ export function runIntegrationTest() {
   validateMarketInput(marketInput);
 
   assert(marketInput.question.length > 0, "Question not set");
+
+  // Report encoding
+  const report = encodeOutcomeReport(
+    "0x0000000000000000000000000000000000000001" as `0x${string}`,
+    1n,
+    0,
+    9000
+  );
+  assert(report.startsWith("0x"), "Outcome report must be hex");
+  assert(report.length > 10, "Outcome report must have encoded data");
+
+  // Publish report encoding
+  const params: DraftPublishParams = {
+    question: "Will X happen?",
+    marketType: 0,
+    outcomes: ["Yes", "No"],
+    timelineWindows: [],
+    resolveTime: Math.floor(Date.now() / 1000) + 86400,
+    tradingOpen: 0,
+    tradingClose: Math.floor(Date.now() / 1000) + 86400,
+  };
+  const paramsHash = computeParamsHash(params);
+  assert(paramsHash.startsWith("0x"), "Params hash must be hex");
+  assert(paramsHash.length === 66, "Params hash must be 32 bytes (66 chars with 0x)");
+
+  const publishReport = encodePublishReport(
+    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
+    "0x0000000000000000000000000000000000000001" as `0x${string}`,
+    params,
+    "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" as `0x${string}`
+  );
+  assert(publishReport.startsWith("0x04"), "Publish report must have 0x04 prefix");
+  assert(publishReport.length > 10, "Publish report must have encoded data");
+
+  // Config schema
+  const logConfig: WorkflowConfig = {
+    relayerUrl: "https://backend-relayer-production.up.railway.app",
+    evms: [
+      {
+        marketAddress: "0x0000000000000000000000000000000000000001",
+        chainSelectorName: "ethereum-testnet-sepolia",
+        gasLimit: "500000",
+      },
+    ],
+    resolution: { mode: "log" },
+  };
+  assert(shouldRegisterLogTrigger(logConfig), "Log trigger should be enabled");
+  assert(!shouldRegisterScheduleResolver(logConfig), "Schedule resolver should be disabled");
+
+  const scheduleConfig: WorkflowConfig = {
+    relayerUrl: "https://backend-relayer-production.up.railway.app",
+    evms: [
+      {
+        marketAddress: "0x0000000000000000000000000000000000000000",
+        marketRegistryAddress: "0x0000000000000000000000000000000000000002",
+        chainSelectorName: "ethereum-testnet-sepolia",
+        gasLimit: "500000",
+      },
+    ],
+    resolution: { mode: "schedule", marketIds: [0, 1] },
+  };
+  assert(!shouldRegisterLogTrigger(scheduleConfig), "Log trigger should be disabled with zero marketAddress");
+  assert(shouldRegisterScheduleResolver(scheduleConfig), "Schedule resolver should be enabled");
+
+  validateWorkflowConfig(logConfig);
+  validateWorkflowConfig(scheduleConfig);
 }

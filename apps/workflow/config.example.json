@@ -1,0 +1,35 @@
+{
+  "relayerUrl": "https://backend-relayer-production.up.railway.app",
+  "creReceiverAddress": "0x0000000000000000000000000000000000000000",
+  "crePublishReceiverAddress": "",
+  "gptModel": "deepseek-chat",
+  "cronSchedule": "*/15 * * * *",
+  "cronScheduleFinalize": "0 */35 * * * *",
+  "cronScheduleCancel": "0 0 */8 * * *",
+  "marketFactoryAddress": "",
+  "creatorAddress": "",
+  "feeds": [],
+  "evms": [
+    {
+      "marketAddress": "0x0000000000000000000000000000000000000000",
+      "marketRegistryAddress": "0x0000000000000000000000000000000000000000",
+      "chainSelectorName": "ethereum-testnet-sepolia",
+      "gasLimit": "500000"
+    }
+  ],
+  "resolution": {
+    "mode": "log",
+    "marketIds": []
+  },
+  "curatedPath": {
+    "draftBoardAddress": "",
+    "crePublishReceiverAddress": "",
+    "enabled": false
+  },
+  "polymarket": {
+    "apiUrl": "https://gamma-api.polymarket.com",
+    "apiKey": ""
+  },
+  "rpcUrl": ""
+}
+

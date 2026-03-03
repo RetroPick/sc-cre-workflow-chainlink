@@ -5,11 +5,14 @@
   "private": true,
   "scripts": {
     "postinstall": "bunx cre-setup",
-    "cre-compile": "bun build --outdir dist --target bun main.ts tmp.wasm"
+    "cre-compile": "bun build --outdir dist --target bun main.ts tmp.wasm",
+    "test": "bun test",
+    "test:e2e": "bun test test/e2e"
   },
   "license": "UNLICENSED",
   "dependencies": {
-    "@chainlink/cre-sdk": "^1.0.3"
+    "@chainlink/cre-sdk": "^1.0.3",
+    "viem": "^2.45.0"
   },
   "devDependencies": {
     "@types/bun": "1.2.21"

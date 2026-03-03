@@ -7,7 +7,7 @@ export function validateFeedConfig(feed: FeedConfig): void {
   if (!feed.id || !feed.type) {
     throw new Error("Feed config missing id or type");
   }
-  if (!feed.mock && !feed.url && feed.type !== "coinGecko") {
+  if (!feed.mock && !feed.url && feed.type !== "coinGecko" && feed.type !== "polymarket") {
     throw new Error(`Feed ${feed.id} missing url`);
   }
 }

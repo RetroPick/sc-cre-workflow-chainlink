@@ -1,5 +1,6 @@
 {
-  "relayerUrl": "https://YOUR-RELAYER-URL",
+  "relayerUrl": "https://backend-relayer-production.up.railway.app",
+  "creReceiverAddress": "0x51c0680d8E9fFE2A2f6CC65e598280D617D6cAb7",
   "gptModel": "deepseek-chat",
   "deepseekApiKey": "sk-f619cc34a25842b3ba3bf9963d0fa816",
   "useMockAi": true,
@@ -33,8 +34,15 @@
   "evms": [
     {
       "marketAddress": "0x62d8D11bD63eEDA81715d19332DFC6e50782045c",
-      "chainSelectorName": "ethereum-testnet-sepolia",
+      "marketRegistryAddress": "0x0000000000000000000000000000000000000000",
+      "chainSelectorName": "avalanche-fuji",
       "gasLimit": "500000"
     }
-  ]
+  ],
+  "resolution": {
+    "mode": "log",
+    "marketIds": []
+  },
+  "cronScheduleFinalize": "0 */35 * * * *",
+  "cronScheduleCancel": "0 0 */8 * * *"
 }

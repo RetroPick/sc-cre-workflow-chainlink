@@ -11,8 +11,9 @@ export function onSessionSnapshot(runtime: Runtime<WorkflowConfig>): string {
   }
 
   const receiverAddress = runtime.config.creReceiverAddress;
-  if (!receiverAddress) {
-    runtime.log("[Yellow] Missing creReceiverAddress in config.");
+  const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+  if (!receiverAddress || receiverAddress.toLowerCase() === ZERO_ADDRESS) {
+    runtime.log("[Yellow] Missing creReceiverAddress in config (set to deployed CREReceiver).");
     return "Missing creReceiverAddress";
   }
 
