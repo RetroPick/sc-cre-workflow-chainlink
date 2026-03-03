@@ -1,7 +1,7 @@
 /**
  * V3 MarketRegistry schedule-based resolution.
- * Polls config.resolution.marketIds, checks each for due-for-resolution,
- * calls AI for outcome (binary/categorical/timeline), sends to CREReceiver.
+ * Polls config.resolution.marketIds and/or fetches from relayer (useRelayerMarkets),
+ * checks each for due-for-resolution, calls AI for outcome, sends to CREReceiver.
  */
 import type { Runtime } from "@chainlink/cre-sdk";
 import { cre, bytesToHex, hexToBase64, TxStatus, getNetwork } from "@chainlink/cre-sdk";
@@ -16,8 +16,39 @@ import {
 } from "../../contracts/marketRegistry";
 import { encodeOutcomeReport } from "../../contracts/reportFormats";
 import { shouldRegisterScheduleResolver } from "../../config/schema";
+import { httpJsonRequest } from "../../utils/http";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+function resolveMarketIds(runtime: Runtime<WorkflowConfig>): number[] {
+  const configIds = runtime.config.resolution?.marketIds ?? [];
+  const useRelayerMarkets = runtime.config.resolution?.useRelayerMarkets === true;
+  const relayerUrl = runtime.config.relayerUrl?.replace(/\/$/, "");
+
+  if (!useRelayerMarkets || !relayerUrl) {
+    return configIds;
+  }
+
+  try {
+    const res = httpJsonRequest(runtime, {
+      url: `${relayerUrl}/cre/markets`,
+      method: "GET",
+    });
+    const body = JSON.parse(res.bodyText);
+    const markets = body.markets ?? [];
+    const relayerIds = new Set<number>();
+    for (const m of markets) {
+      const id = typeof m.marketId === "string" ? parseInt(m.marketId, 10) : Number(m.marketId);
+      if (!Number.isNaN(id)) relayerIds.add(id);
+    }
+    const merged = new Set([...configIds, ...relayerIds]);
+    return Array.from(merged);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    runtime.log(`[ScheduleResolver] Failed to fetch /cre/markets: ${msg}; using config marketIds only`);
+    return configIds;
+  }
+}
 
 export function onScheduleResolver(runtime: Runtime<WorkflowConfig>): string {
   if (!shouldRegisterScheduleResolver(runtime.config)) {
@@ -31,9 +62,9 @@ export function onScheduleResolver(runtime: Runtime<WorkflowConfig>): string {
     return "Missing creReceiverAddress";
   }
 
-  const marketIds = runtime.config.resolution?.marketIds ?? [];
+  const marketIds = resolveMarketIds(runtime);
   if (marketIds.length === 0) {
-    runtime.log("[ScheduleResolver] No marketIds configured.");
+    runtime.log("[ScheduleResolver] No marketIds (config or relayer).");
     return "No marketIds";
   }
 

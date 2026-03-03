@@ -16,6 +16,8 @@ interface CheckpointMeta {
   sessionId: string;
   marketId: string;
   hasDeltas: boolean;
+  /** When present (relayer chain read), pre-filter to avoid 400s */
+  canFinalize?: boolean;
 }
 
 interface FinalizeResponse {
@@ -39,13 +41,21 @@ export function onCheckpointFinalize(runtime: Runtime<WorkflowConfig>): string {
     const listBody = JSON.parse(listRes.bodyText);
     const checkpoints: CheckpointMeta[] = listBody.checkpoints || [];
     const withDeltas = checkpoints.filter((c) => c.hasDeltas);
-    if (withDeltas.length === 0) {
-      runtime.log("[CheckpointFinalize] No sessions with deltas.");
-      return "No sessions with deltas";
+    const toFinalize =
+      withDeltas.length > 0 && typeof withDeltas[0].canFinalize === "boolean"
+        ? withDeltas.filter((c) => c.canFinalize === true)
+        : withDeltas;
+    if (toFinalize.length === 0) {
+      runtime.log(
+        withDeltas.length === 0
+          ? "[CheckpointFinalize] No sessions with deltas."
+          : "[CheckpointFinalize] No sessions ready to finalize (challenge window not elapsed)."
+      );
+      return withDeltas.length === 0 ? "No sessions with deltas" : "No sessions ready to finalize";
     }
 
     const finalized: string[] = [];
-    for (const cp of withDeltas) {
+    for (const cp of toFinalize) {
       const sessionId = cp.sessionId;
       try {
         const postRes = httpJsonRequest(runtime, {

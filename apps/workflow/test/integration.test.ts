@@ -94,6 +94,42 @@ export function runIntegrationTest() {
   assert(!shouldRegisterLogTrigger(scheduleConfig), "Log trigger should be disabled with zero marketAddress");
   assert(shouldRegisterScheduleResolver(scheduleConfig), "Schedule resolver should be enabled");
 
+  const scheduleWithRelayerConfig: WorkflowConfig = {
+    relayerUrl: "https://backend-relayer-production.up.railway.app",
+    evms: [
+      {
+        marketAddress: "0x0000000000000000000000000000000000000000",
+        marketRegistryAddress: "0x0000000000000000000000000000000000000002",
+        chainSelectorName: "ethereum-testnet-sepolia",
+        gasLimit: "500000",
+      },
+    ],
+    resolution: { mode: "schedule", useRelayerMarkets: true },
+  };
+  validateWorkflowConfig(scheduleWithRelayerConfig);
+
+  // Feeds validation: with feeds, marketFactoryAddress and creatorAddress required
+  const feedsConfigNoFactory: WorkflowConfig = {
+    relayerUrl: "https://backend-relayer-production.up.railway.app",
+    feeds: [{ id: "x", type: "custom", url: "https://example.com", category: "test" }],
+    evms: [
+      {
+        marketAddress: "0x0000000000000000000000000000000000000001",
+        chainSelectorName: "ethereum-testnet-sepolia",
+        gasLimit: "500000",
+      },
+    ],
+  };
+  try {
+    validateWorkflowConfig(feedsConfigNoFactory);
+    throw new Error("Expected validation to fail for feeds without marketFactoryAddress");
+  } catch (e) {
+    assert(
+      String(e).includes("marketFactoryAddress"),
+      "Should fail with marketFactoryAddress error"
+    );
+  }
+
   validateWorkflowConfig(logConfig);
   validateWorkflowConfig(scheduleConfig);
 }

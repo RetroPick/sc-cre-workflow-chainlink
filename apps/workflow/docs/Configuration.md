@@ -22,8 +22,8 @@ Full reference for `WorkflowConfig` used by the CRE workflow. Edit `config.stagi
 | Field | Default | Purpose |
 |-------|---------|---------|
 | `cronSchedule` | `"*/15 * * * *"` | Main cron: scheduleTrigger, draftProposer, sessionSnapshot, checkpointSubmit, scheduleResolver |
-| `cronScheduleFinalize` | Same as cronSchedule | Separate cron for checkpoint finalize |
-| `cronScheduleCancel` | `"0 0 */8 * * *"` | Cron for checkpoint cancel (every 8 hr) |
+| `cronScheduleFinalize` | Same as cronSchedule | Separate cron for checkpoint finalize. **Recommended:** Run at least every 35–40 min (e.g. `0 */35 * * * *`) since challenge window is 30 min. |
+| `cronScheduleCancel` | `"0 0 */8 * * *"` | Cron for checkpoint cancel (every 8 hr). Run at least every 8 hr; CANCEL_DELAY is 6 hr. |
 
 Cron format: `second minute hour day month weekday` (6 fields).
 
@@ -56,10 +56,11 @@ Example:
 | Field | Type | Purpose |
 |-------|------|---------|
 | `resolution.mode` | `"log"` \| `"schedule"` \| `"both"` | Resolution lane. Default: `"log"` |
-| `resolution.marketIds` | `number[]` | Market IDs to poll when mode includes "schedule" |
+| `resolution.marketIds` | `number[]` | Market IDs to poll when mode includes "schedule". Merged with relayer markets when `useRelayerMarkets` is true. |
+| `resolution.useRelayerMarkets` | `boolean` | When true, fetch market IDs from `GET {relayerUrl}/cre/markets` and merge with `marketIds`. Schedule mode requires either `marketIds` non-empty or `useRelayerMarkets: true`. |
 
 - **log**: Event-driven; listens for `SettlementRequested` on `marketAddress`. Requires `evms[0].marketAddress`.
-- **schedule**: Cron polls `marketIds`; resolves markets where `resolveTime <= now`. Requires `evms[0].marketRegistryAddress`.
+- **schedule**: Cron polls `marketIds` (and/or relayer when `useRelayerMarkets`); resolves markets where `resolveTime <= now`. Requires `evms[0].marketRegistryAddress`.
 - **both**: Registers both log trigger and schedule resolver.
 
 ## Curated Path (Draft Board)

@@ -6,7 +6,7 @@
   "useMockAi": true,
   "mockAiResponse": "{\"result\":\"YES\",\"confidence\":10000}",
   "cronSchedule": "*/15 * * * *",
-  "marketFactoryAddress": "",
+  "marketFactoryAddress": "0x2f70602034854c14cbfd1f94c713f833d344d748",
   "creatorAddress": "0xbeaA395506D02d20749d8E39ddb996ACe1C85Bfc",
   "feeds": [
     {

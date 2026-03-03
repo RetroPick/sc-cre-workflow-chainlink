@@ -45,7 +45,37 @@ Market creation paths: feed-driven (scheduleTrigger), publish-from-draft (HTTP),
 
 ---
 
-## 2. Publish-from-Draft (HTTP)
+## 2. Create Market via HTTP
+
+**Source:** [httpCallback.ts](../httpCallback.ts), [pipeline/creation/marketCreator.ts](../pipeline/creation/marketCreator.ts)
+
+When HTTP payload has `question` (and not the publish-from-draft shape), the workflow creates a market via MarketFactory.
+
+### Flow
+
+1. HTTP trigger receives payload with `question` (required), optional `resolveTime`, `category`, `requestedBy`.
+2. buildFeedItemFromPayload builds a FeedItem with defaults (resolveTime: now + 24h, category: "http").
+3. generateMarketInput + createMarkets → writeReport to `marketFactoryAddress`.
+
+### Config
+
+- `marketFactoryAddress` — required
+- `creatorAddress` — required (or provide `requestedBy` in payload)
+
+### HTTP Payload
+
+```json
+{
+  "question": "Will X happen by tomorrow?",
+  "resolveTime": 1735689600,
+  "category": "custom",
+  "requestedBy": "0x..."
+}
+```
+
+---
+
+## 3. Publish-from-Draft (HTTP)
 
 **Source:** [httpCallback.ts](../httpCallback.ts), [pipeline/creation/publishFromDraft.ts](../pipeline/creation/publishFromDraft.ts)
 
@@ -94,7 +124,7 @@ CREPublishReceiver validates EIP-712 PublishFromDraft signature and calls Market
 
 ---
 
-## 3. Draft Proposer (Polymarket → MarketDraftBoard)
+## 4. Draft Proposer (Polymarket → MarketDraftBoard)
 
 **Source:** [pipeline/creation/draftProposer.ts](../pipeline/creation/draftProposer.ts)
 
@@ -136,13 +166,23 @@ Calls MarketDraftBoard.proposeDraft with question, questionUri, outcomes, outcom
 
 ## Comparison
 
-| Aspect | Feed-Driven | Publish-from-Draft | Draft Proposer |
-|--------|-------------|---------------------|----------------|
-| Trigger | Cron | HTTP | Cron |
-| Receiver | MarketFactory | CREPublishReceiver | RPC (MarketDraftBoard) |
-| CRE writeReport | Yes | Yes | No (direct tx) |
-| Creator sig | No | Yes (EIP-712) | N/A (propose only) |
-| Claim/Publish | N/A | Manual (creator) | Manual |
+| Aspect | Feed-Driven | HTTP Create | Publish-from-Draft | Draft Proposer |
+|--------|-------------|-------------|---------------------|----------------|
+| Trigger | Cron | HTTP | HTTP | Cron |
+| Receiver | MarketFactory | MarketFactory | CREPublishReceiver | RPC (MarketDraftBoard) |
+| CRE writeReport | Yes | Yes | Yes | No (direct tx) |
+| Creator sig | No | No | Yes (EIP-712) | N/A (propose only) |
+| Claim/Publish | N/A | N/A | Manual (creator) | Manual |
+
+## Session Auto-Creation (Optional)
+
+After market creation, the workflow can notify the relayer to create a trading session via `POST {relayerUrl}/cre/sessions/create`.
+
+**Relayer endpoint:** `POST /cre/sessions/create`
+
+**Body:** `{ marketId, vaultId, resolveTime, sessionId?, numOutcomes?, b? }`
+
+If `sessionId` is omitted, the relayer generates one deterministically. When workflow receives market IDs from creation (e.g. via future marketCreator enhancement to parse MarketCreated events), it can call this endpoint to auto-create sessions.
 
 ## References
 

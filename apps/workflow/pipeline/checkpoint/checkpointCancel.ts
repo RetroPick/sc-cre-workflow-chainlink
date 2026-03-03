@@ -17,6 +17,8 @@ interface CheckpointMeta {
   sessionId: string;
   marketId: string;
   hasDeltas: boolean;
+  /** When present (relayer chain read), pre-filter to avoid 400s */
+  canCancel?: boolean;
 }
 
 interface CancelResponse {
@@ -40,13 +42,21 @@ export function onCheckpointCancel(runtime: Runtime<WorkflowConfig>): string {
     const listBody = JSON.parse(listRes.bodyText);
     const checkpoints: CheckpointMeta[] = listBody.checkpoints || [];
     const withDeltas = checkpoints.filter((c) => c.hasDeltas);
-    if (withDeltas.length === 0) {
-      runtime.log("[CheckpointCancel] No sessions with deltas.");
-      return "No sessions with deltas";
+    const toCancel =
+      withDeltas.length > 0 && typeof withDeltas[0].canCancel === "boolean"
+        ? withDeltas.filter((c) => c.canCancel === true)
+        : withDeltas;
+    if (toCancel.length === 0) {
+      runtime.log(
+        withDeltas.length === 0
+          ? "[CheckpointCancel] No sessions with deltas."
+          : "[CheckpointCancel] No sessions ready to cancel (CANCEL_DELAY not elapsed)."
+      );
+      return withDeltas.length === 0 ? "No sessions with deltas" : "No sessions ready to cancel";
     }
 
     const cancelled: string[] = [];
-    for (const cp of withDeltas) {
+    for (const cp of toCancel) {
       const sessionId = cp.sessionId;
       try {
         const postRes = httpJsonRequest(runtime, {

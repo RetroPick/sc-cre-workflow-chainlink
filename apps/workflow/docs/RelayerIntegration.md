@@ -86,13 +86,24 @@ If checkpoint stuck > 6 hr, `POST /cre/cancel/:sessionId`. Relayer submits `canc
 
 Workflow uses `httpJsonRequest` which throws on non-2xx. Handlers catch and log; finalize/cancel treat 400 as "not ready" (idempotent).
 
+## Checkpoint Pre-Filtering (canFinalize, canCancel)
+
+When `CHANNEL_SETTLEMENT_ADDRESS` and `RPC_URL` are set, `GET /cre/checkpoints` enriches each entry with:
+
+- `pendingCheckpointCreatedAt` — Unix timestamp when checkpoint was submitted (if pending)
+- `canFinalize` — true when 30 min challenge window has elapsed
+- `canCancel` — true when 6 hr CANCEL_DELAY has elapsed
+
+The CRE workflow filters by `canFinalize` / `canCancel` before POSTing to avoid 400s.
+
 ## Endpoints Not Used by Workflow
 
 | Endpoint | Purpose | Note |
 |----------|---------|------|
 | GET /cre/sessions | Legacy sessions (resolveTime <= now) | Alternative to /cre/checkpoints for discovery |
 | GET /cre/sessions/:sessionId | Legacy SessionFinalizer payload | sessionSnapshot uses yellowSessions from config, not relayer |
-| GET /cre/markets | Session-to-market mapping | Frontend alignment |
+| GET /cre/markets | Session-to-market mapping | Used by scheduleResolver when useRelayerMarkets |
+| POST /cre/sessions/create | Auto-create session for market | Workflow may call after market creation (when marketIds available) |
 
 ## Full API Reference
 

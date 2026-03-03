@@ -37,8 +37,10 @@ export type WorkflowConfig = {
   /** Resolution lane: log=PoolMarketLegacy events, schedule=MarketRegistry cron, both=both */
   resolution?: {
     mode: ResolutionMode;
-    /** Market IDs to check when mode includes 'schedule'. Required for schedule resolution. */
+    /** Market IDs to check when mode includes 'schedule'. Merged with relayer markets when useRelayerMarkets is true. */
     marketIds?: number[];
+    /** When true, fetch marketIds from GET {relayerUrl}/cre/markets. Merged with marketIds if both provided. */
+    useRelayerMarkets?: boolean;
   };
   /** ChannelSettlement address for cancel job (or derive from relayer GET /cre/checkpoints/:sessionId) */
   channelSettlementAddress?: `0x${string}`;
