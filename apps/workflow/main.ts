@@ -5,7 +5,7 @@ import { keccak256, toHex } from "viem";
 import { onHttpTrigger } from "./httpCallback";
 import { onLogTrigger } from "./pipeline/resolution/logTrigger";
 import { onScheduleResolver } from "./pipeline/resolution/scheduleResolver";
-import { onScheduleTrigger } from "./pipeline/creation/scheduleTrigger";
+import { onDiscoveryCron } from "./pipeline/orchestration/discoveryCron";
 import { onDraftProposer } from "./pipeline/creation/draftProposer";
 import { onSessionSnapshot } from "./jobs/sessionSnapshot";
 import { onCheckpointSubmit } from "./pipeline/checkpoint/checkpointSubmit";
@@ -32,7 +32,7 @@ const initWorkflow = (config: WorkflowConfig) => {
   });
 
   const handlers = [
-    cre.handler(cronTrigger, onScheduleTrigger),
+    cre.handler(cronTrigger, onDiscoveryCron),
     cre.handler(cronTrigger, onDraftProposer),
     cre.handler(cronTrigger, onSessionSnapshot),
     cre.handler(cronTrigger, onCheckpointSubmit),

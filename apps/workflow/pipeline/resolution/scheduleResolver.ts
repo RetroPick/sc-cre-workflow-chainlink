@@ -6,7 +6,8 @@
 import type { Runtime } from "@chainlink/cre-sdk";
 import { cre, bytesToHex, hexToBase64, TxStatus, getNetwork } from "@chainlink/cre-sdk";
 import type { WorkflowConfig } from "../../types/config";
-import { askGPTForOutcome } from "../../gpt";
+import { resolveFromPlan } from "./resolveFromPlan";
+import { getResolutionPlan } from "../persistence/resolutionPlanStore";
 import {
   readMarket,
   readMarketType,
@@ -16,6 +17,7 @@ import {
 } from "../../contracts/marketRegistry";
 import { encodeOutcomeReport } from "../../contracts/reportFormats";
 import { shouldRegisterScheduleResolver } from "../../config/schema";
+import { logSettlementDecision, logSettlementArtifact } from "../audit/auditLogger";
 import { httpJsonRequest } from "../../utils/http";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -50,7 +52,7 @@ function resolveMarketIds(runtime: Runtime<WorkflowConfig>): number[] {
   }
 }
 
-export function onScheduleResolver(runtime: Runtime<WorkflowConfig>): string {
+export async function onScheduleResolver(runtime: Runtime<WorkflowConfig>): Promise<string> {
   if (!shouldRegisterScheduleResolver(runtime.config)) {
     runtime.log("[ScheduleResolver] Not enabled (resolution.mode or marketRegistryAddress).");
     return "Schedule resolver not enabled";
@@ -141,13 +143,50 @@ export function onScheduleResolver(runtime: Runtime<WorkflowConfig>): string {
         );
       }
 
-      const { outcomeIndex, confidence } = askGPTForOutcome(
+      const resolutionPlan = getResolutionPlan(String(marketId), market.question);
+      const result = await resolveFromPlan(
         runtime,
         market.question,
         marketType,
         outcomes,
-        timelineWindows
+        timelineWindows,
+        resolutionPlan ?? undefined
       );
+
+      if (!result.ok) {
+        const ts = Math.floor(Date.now() / 1000);
+        logSettlementDecision(
+          {
+            marketId: String(marketId),
+            question: market.question,
+            resolutionSourcesUsed: result.artifact?.sourcesUsed ?? [],
+            settlementDecision: result.status,
+            contradictionStatus: result.reason,
+            createdAt: ts,
+          },
+          runtime
+        );
+        if (result.artifact) {
+          logSettlementArtifact(
+            {
+              marketId: String(marketId),
+              question: market.question,
+              outcomeIndex: 0,
+              confidence: 0,
+              timestamp: ts,
+              sourcesUsed: result.artifact.sourcesUsed ?? [],
+              resolutionMode: result.artifact.resolutionMode ?? "unknown",
+              reasoning: result.artifact.reasoning ?? result.reason,
+              reviewRequired: true,
+            },
+            runtime
+          );
+        }
+        runtime.log(`[ScheduleResolver] Market ${marketId} ${result.reason} - skipping`);
+        continue;
+      }
+
+      const { outcomeIndex, confidence } = result;
 
       const reportData = encodeOutcomeReport(
         marketRegistryAddress as `0x${string}`,
@@ -171,6 +210,37 @@ export function onScheduleResolver(runtime: Runtime<WorkflowConfig>): string {
 
       if (writeResult.txStatus === TxStatus.SUCCESS) {
         const txHash = bytesToHex(writeResult.txHash || new Uint8Array(32));
+        const ts = Math.floor(Date.now() / 1000);
+        logSettlementDecision(
+          {
+            marketId: String(marketId),
+            question: market.question,
+            resolutionSourcesUsed: result.artifact?.sourcesUsed ?? [],
+            settlementDecision: "RESOLVED",
+            outcomeIndex,
+            confidence,
+            txHash,
+            createdAt: ts,
+          },
+          runtime
+        );
+        if (result.artifact) {
+          logSettlementArtifact(
+            {
+              marketId: String(marketId),
+              question: market.question,
+              outcomeIndex,
+              confidence,
+              timestamp: ts,
+              modelsUsed: result.artifact.modelsUsed,
+              sourcesUsed: result.artifact.sourcesUsed ?? [],
+              resolutionMode: result.artifact.resolutionMode ?? "ai_assisted",
+              reasoning: result.artifact.reasoning,
+              txHash,
+            },
+            runtime
+          );
+        }
         runtime.log(`[ScheduleResolver] Settled market ${marketId}: ${txHash}`);
         settled.push(txHash);
       } else {

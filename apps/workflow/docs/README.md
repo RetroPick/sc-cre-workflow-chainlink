@@ -8,21 +8,19 @@ Comprehensive documentation for the RetroPick Chainlink CRE (Request-and-Execute
 2. **Config:** Copy `config.example.json` to `config.staging.json` or `config.production.json`
 3. **Simulate:** From project root: `cre workflow simulate ./apps/workflow --target=staging-settings`
 
-See [Configuration](Configuration.md) for full config reference.
+## Full Documentation
 
-## Documentation Index
+**[DOCUMENTATION.md](DOCUMENTATION.md)** — Single consolidated document containing:
 
-| Document | Description |
-|----------|-------------|
-| [Architecture](Architecture.md) | High-level system design, component diagram, report routing |
-| [Configuration](Configuration.md) | Full config reference, validation rules, examples |
-| [Handlers Reference](HandlersReference.md) | Per-handler documentation (triggers, config, purpose) |
-| [Resolution Flow](ResolutionFlow.md) | End-to-end market resolution: trigger → AI → chain |
-| [Checkpoint Flow](CheckpointFlow.md) | V3 checkpoint submit, challenge window, finalize, cancel |
-| [Relayer Integration](RelayerIntegration.md) | Workflow ↔ Relayer API contract and usage |
-| [Contract Integration](ContractIntegration.md) | Report formats, receivers, on-chain routing |
-| [Creation Flows](CreationFlows.md) | Market creation paths (feed, publish-from-draft, draftProposer) |
-| [Troubleshooting](Troubleshooting.md) | Common failure modes and resolutions |
+- Architecture, component roles, report routing
+- Configuration reference, validation rules, examples
+- Handlers reference (triggers, config, purpose)
+- Resolution flow (trigger → AI → chain)
+- Checkpoint flow (submit, challenge window, finalize, cancel)
+- Relayer integration (API contract and usage)
+- Contract integration (report formats, receivers, on-chain routing)
+- Creation flows (feed, publish-from-draft, draftProposer)
+- Troubleshooting (common failure modes and resolutions)
 
 ## Prerequisites
 

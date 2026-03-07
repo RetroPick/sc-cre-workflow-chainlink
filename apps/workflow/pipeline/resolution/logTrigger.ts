@@ -12,7 +12,7 @@ import {
   TxStatus,
 } from "@chainlink/cre-sdk";
 import { decodeEventLog, parseAbi } from "viem";
-import { askGPTForOutcome } from "../../gpt";
+import { resolveFromPlan } from "./resolveFromPlan";
 import type { WorkflowConfig } from "../../types/config";
 import {
   readMarket,
@@ -21,6 +21,8 @@ import {
   readTimelineWindows,
 } from "../../contracts/poolMarketLegacy";
 import { encodeOutcomeReport } from "../../contracts/reportFormats";
+import { logSettlementDecision, logSettlementArtifact } from "../audit/auditLogger";
+import { getResolutionPlan } from "../persistence/resolutionPlanStore";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -54,7 +56,7 @@ function decodeSettlementRequested(log: EVMLog) {
   return { marketId, question };
 }
 
-export function onLogTrigger(runtime: Runtime<WorkflowConfig>, log: EVMLog): string {
+export async function onLogTrigger(runtime: Runtime<WorkflowConfig>, log: EVMLog): Promise<string> {
   logHeader(runtime);
 
   try {
@@ -105,13 +107,51 @@ export function onLogTrigger(runtime: Runtime<WorkflowConfig>, log: EVMLog): str
       timelineWindows = readTimelineWindows(runtime, evmClient, evmConfig.marketAddress, marketId);
     }
 
-    const { outcomeIndex, confidence } = askGPTForOutcome(
+    const resolutionPlan = getResolutionPlan(String(marketId), question);
+    const result = await resolveFromPlan(
       runtime,
       question,
       marketType,
       outcomes,
-      timelineWindows
+      timelineWindows,
+      resolutionPlan ?? undefined
     );
+
+    if (!result.ok) {
+      const ts = Math.floor(Date.now() / 1000);
+      logSettlementDecision(
+        {
+          marketId: String(marketId),
+          question,
+          resolutionSourcesUsed: result.artifact?.sourcesUsed ?? [],
+          settlementDecision: result.status,
+          contradictionStatus: result.reason,
+          createdAt: ts,
+        },
+        runtime
+      );
+      if (result.artifact) {
+        logSettlementArtifact(
+          {
+            marketId: String(marketId),
+            question,
+            outcomeIndex: 0,
+            confidence: 0,
+            timestamp: ts,
+            sourcesUsed: result.artifact.sourcesUsed ?? [],
+            resolutionMode: result.artifact.resolutionMode ?? "unknown",
+            reasoning: result.artifact.reasoning ?? result.reason,
+            reviewRequired: true,
+          },
+          runtime
+        );
+      }
+      runtime.log(`[Step 3] ${result.reason} - not settling`);
+      logFooter(runtime);
+      return result.reason;
+    }
+
+    const { outcomeIndex, confidence } = result;
 
     runtime.log(`[Step 3] AI outcomeIndex: ${outcomeIndex}`);
     runtime.log(`[Step 3] AI Confidence: ${confidence / 100}%`);
@@ -146,6 +186,37 @@ export function onLogTrigger(runtime: Runtime<WorkflowConfig>, log: EVMLog): str
 
     if (writeResult.txStatus === TxStatus.SUCCESS) {
       const txHash = bytesToHex(writeResult.txHash || new Uint8Array(32));
+      const ts = Math.floor(Date.now() / 1000);
+      logSettlementDecision(
+        {
+          marketId: String(marketId),
+          question,
+          resolutionSourcesUsed: result.artifact?.sourcesUsed ?? [],
+          settlementDecision: "RESOLVED",
+          outcomeIndex,
+          confidence,
+          txHash,
+          createdAt: ts,
+        },
+        runtime
+      );
+      if (result.artifact) {
+        logSettlementArtifact(
+          {
+            marketId: String(marketId),
+            question,
+            outcomeIndex,
+            confidence,
+            timestamp: ts,
+            modelsUsed: result.artifact.modelsUsed,
+            sourcesUsed: result.artifact.sourcesUsed ?? [],
+            resolutionMode: result.artifact.resolutionMode ?? "ai_assisted",
+            reasoning: result.artifact.reasoning,
+            txHash,
+          },
+          runtime
+        );
+      }
       runtime.log(`[Step 4] ✓ Settlement successful: ${txHash}`);
       logFooter(runtime);
       return `Settled: ${txHash}`;

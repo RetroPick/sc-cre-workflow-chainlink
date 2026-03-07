@@ -207,7 +207,45 @@ import type { WorkflowConfig } from "./types/config";
       throw new Error(`Unsupported marketType ${marketType} or missing outcomes/windows`);
     }
 
-    private askGPTWithPrompt(systemPrompt: string, userContent: string): GPTResponse {
+    /**
+     * Complete with custom system/user prompts and parse response as JSON.
+     * Used by LlmProvider for analysis layers (classify, risk, draft, explain).
+     */
+    public completeJson<T>(args: {
+      system: string;
+      user: string;
+      schemaName: string;
+      temperature?: number;
+    }): T {
+      const { system, user, temperature = DEFAULT_TEMPERATURE } = args;
+      const response = this.askGPTWithPrompt(system, user, temperature);
+      return this.parseJsonFromResponse<T>(response.gptResponse);
+    }
+
+    private parseJsonFromResponse<T>(text: string): T {
+      // Strip markdown code blocks if present
+      let cleaned = text.trim();
+      const jsonBlock = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonBlock) {
+        cleaned = jsonBlock[1].trim();
+      }
+      // Find first { ... } or [ ... ] for JSON object/array
+      const objectMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (objectMatch) {
+        return JSON.parse(objectMatch[0]) as T;
+      }
+      const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+      if (arrayMatch) {
+        return JSON.parse(arrayMatch[0]) as T;
+      }
+      return JSON.parse(cleaned) as T;
+    }
+
+    private askGPTWithPrompt(
+      systemPrompt: string,
+      userContent: string,
+      temperature: number = DEFAULT_TEMPERATURE
+    ): GPTResponse {
       if (this.runtime.config.useMockAi) {
         const mockResponse = this.runtime.config.mockAiResponse || '{"outcomeIndex":0,"confidence":10000}';
         this.runtime.log("[DeepSeek] Using mock AI response for typed market.");
@@ -216,7 +254,7 @@ import type { WorkflowConfig } from "./types/config";
       this.runtime.log("[DeepSeek] Querying AI for typed market outcome...");
       const apiKey = resolveApiKey(this.runtime);
       const model = this.runtime.config.gptModel?.trim() || DEFAULT_DEEPSEEK_MODEL;
-      const requestBuilder = this.buildGPTRequestTyped(systemPrompt, userContent, apiKey, model);
+      const requestBuilder = this.buildGPTRequestTyped(systemPrompt, userContent, apiKey, model, temperature);
       const aggregatedResponse = consensusIdenticalAggregation<GPTResponse>();
       const httpClient = new cre.capabilities.HTTPClient();
       const result = httpClient
@@ -227,7 +265,13 @@ import type { WorkflowConfig } from "./types/config";
       return result;
     }
 
-    private buildGPTRequestTyped(systemPrompt: string, userContent: string, apiKey: string, model: string) {
+    private buildGPTRequestTyped(
+      systemPrompt: string,
+      userContent: string,
+      apiKey: string,
+      model: string,
+      temperature: number = DEFAULT_TEMPERATURE
+    ) {
       return (sendRequester: HTTPSendRequester, config: Config): GPTResponse => {
         const request = {
           url: DEEPSEEK_API_URL,
@@ -238,7 +282,7 @@ import type { WorkflowConfig } from "./types/config";
               { role: "system" as const, content: systemPrompt },
               { role: "user" as const, content: userContent },
             ],
-            temperature: DEFAULT_TEMPERATURE,
+            temperature,
           }),
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           cacheSettings: { store: true, maxAge: RESPONSE_CACHE_AGE },
