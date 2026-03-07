@@ -28,8 +28,10 @@
   },
   "polymarket": {
     "apiUrl": "https://gamma-api.polymarket.com",
-    "apiKey": ""
+    "apiKey": "",
+    "clobUrl": "https://clob.polymarket.com",
+    "secret": "",
+    "passphrase": ""
   },
   "rpcUrl": ""
 }
-

@@ -17,6 +17,7 @@
 | `VITE_CHANNEL_SETTLEMENT` | For signing | ChannelSettlement address (EIP-712 verifyingContract) |
 | `VITE_OUTCOME_TOKEN` | For reads | OutcomeToken1155 address |
 | `VITE_MARKET_DRAFT_BOARD` | For publish | MarketDraftBoard address (curated path) |
+| `VITE_POLYMARKET_API_KEY` | Optional | Polymarket Gamma API key (rate limit bypass). Never commit to source. |
 
 **Example (.env):**
 

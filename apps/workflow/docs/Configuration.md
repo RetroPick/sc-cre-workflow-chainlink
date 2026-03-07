@@ -154,12 +154,17 @@ Additional fields per type: `coinId`, `vsCurrency`, `multiplier` (coinGecko); `a
 
 Each item: `marketId`, `sessionId`, `participants`, `balances`, `signatures`, `backendSignature`, `resolveTime`.
 
-## Polymarket (Draft Proposer)
+## Polymarket (Draft Proposer & Resolution)
 
 | Field | Purpose |
 |-------|---------|
 | `polymarket.apiUrl` | Gamma API URL (default: `https://gamma-api.polymarket.com`) |
-| `polymarket.apiKey` | Optional API key for rate limits |
+| `polymarket.apiKey` | Gamma API key for rate limits; prefer CRE secret `POLYMARKET_API_KEY` |
+| `polymarket.clobUrl` | CLOB API URL (default: `https://clob.polymarket.com`) |
+| `polymarket.secret` | CLOB L2 auth; prefer CRE secret `POLYMARKET_SECRET` |
+| `polymarket.passphrase` | CLOB L2 auth; prefer CRE secret `POLYMARKET_PASSPHRASE` |
+
+**Never commit credentials.** Store in CRE secrets or `.env` (gitignored).
 
 ## RPC and Keys
 
@@ -206,3 +211,6 @@ Environment: `CRE_ETH_PRIVATE_KEY` (or `DRAFT_PROPOSER_PRIVATE_KEY`) for draftPr
 | `RPC_URL` | RPC URL (fallback when config.rpcUrl not set) |
 | `DEEPSEEK_API_KEY` | AI API key when `llmProvider` is `deepseek` (default) |
 | `GEMINI_API_KEY` | AI API key when `llmProvider` is `gemini` |
+| `POLYMARKET_API_KEY` | Polymarket Gamma API key (rate limit bypass) |
+| `POLYMARKET_SECRET` | Polymarket CLOB L2 auth (trading) |
+| `POLYMARKET_PASSPHRASE` | Polymarket CLOB L2 auth |

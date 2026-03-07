@@ -11,6 +11,7 @@ import { runLLMConsensus } from "./llmConsensus";
 import { createLlmProvider } from "../../models/providers/llmProvider";
 import { httpJsonRequest } from "../../utils/http";
 import { getValueByPath } from "../../utils/jsonPath";
+import { fetchPolymarketResolution } from "./polymarketResolutionSource";
 
 export type ResolutionExecutorResult =
   | {
@@ -86,6 +87,27 @@ async function deterministicResolution(
 
   if (source.sourceType === "onchain_event") {
     return { status: "REVIEW_REQUIRED", reason: "onchain_event deterministic resolution requires EVM client (not yet implemented)" };
+  }
+
+  if (source.sourceType === "polymarket") {
+    const result = await fetchPolymarketResolution(runtime, source.locator);
+    if (result.status === "SUCCESS" && result.confidence >= minConf) {
+      return {
+        status: "SUCCESS",
+        outcomeIndex: result.outcomeIndex,
+        confidence: result.confidence,
+        reasoning: "Polymarket closed event resolution",
+        sourcesUsed: [source.locator],
+        resolutionMode: "deterministic",
+      };
+    }
+    if (result.status === "AMBIGUOUS") {
+      return { status: "AMBIGUOUS", reason: result.reason };
+    }
+    return {
+      status: "REVIEW_REQUIRED",
+      reason: result.reason ?? "Polymarket resolution failed",
+    };
   }
 
   if (source.sourceType === "official_api" || source.sourceType === "official_website" || source.sourceType === "public_dataset") {

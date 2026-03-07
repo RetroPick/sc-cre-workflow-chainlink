@@ -24,7 +24,8 @@ function inferResolutionSourceType(
   if (st.includes("dataset") || st.includes("public_data")) return "public_dataset";
   if (st.includes("llm")) return "llm_consensus";
   if (st.includes("manual")) return "manual_review";
-  if (st === "polymarket" || st === "news" || st === "github") return "public_dataset";
+  if (st === "polymarket") return "polymarket";
+  if (st === "news" || st === "github") return "public_dataset";
   return "public_dataset";
 }
 
@@ -84,6 +85,7 @@ function chooseResolutionMode(
 ): OracleabilityResult["resolutionMode"] {
   const types = new Set(primarySources.map((s) => s.sourceType));
   if (types.has("onchain_event")) return "deterministic";
+  if (types.has("polymarket")) return "deterministic";
   if (types.has("official_api") && primarySources.length >= 1) return "deterministic";
   if (
     types.has("official_website") ||
@@ -115,12 +117,25 @@ function computeOracleabilityScore(
 }
 
 function rankEvidenceForResolution(
-  evidence: EvidenceBundle
+  evidence: EvidenceBundle,
+  observation?: SourceObservation
 ): { primary: ResolutionSource[]; fallback: ResolutionSource[] } {
   const allPrimary = evidence.primary.map(toResolutionSource);
   const allSupporting = evidence.supporting.map(toResolutionSource);
+
+  // When observation is from Polymarket, add Polymarket as primary resolution source
+  const polymarketSource: ResolutionSource[] = [];
+  if (observation?.sourceType === "polymarket" && observation.externalId) {
+    polymarketSource.push({
+      sourceType: "polymarket",
+      locator: observation.externalId,
+      trustScore: 0.9,
+      notes: "Polymarket Gamma API closed event",
+    });
+  }
+
   const primary = dedupeSources(
-    [...allPrimary].sort((a, b) => b.trustScore - a.trustScore)
+    [...polymarketSource, ...allPrimary].sort((a, b) => b.trustScore - a.trustScore)
   ).slice(0, 3);
   const fallback = dedupeSources(
     [...allSupporting].sort((a, b) => b.trustScore - a.trustScore)

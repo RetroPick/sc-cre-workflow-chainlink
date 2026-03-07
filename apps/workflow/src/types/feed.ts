@@ -1,4 +1,4 @@
-export type FeedType = "newsAPI" | "coinGecko" | "githubTrends" | "polymarket" | "custom";
+export type FeedType = "newsAPI" | "coinGecko" | "githubTrends" | "polymarket" | "polymarketMarkets" | "custom";
 
 export type FeedConfig = {
   id: string;

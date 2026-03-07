@@ -8,7 +8,8 @@ export type ResolutionSource = {
     | "official_website"
     | "public_dataset"
     | "llm_consensus"
-    | "manual_review";
+    | "manual_review"
+    | "polymarket";
   locator: string;
   trustScore: number;
   freshnessTtlSec?: number;

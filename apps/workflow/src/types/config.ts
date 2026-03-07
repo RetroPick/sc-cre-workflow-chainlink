@@ -68,10 +68,13 @@ export type WorkflowConfig = {
     crePublishReceiverAddress?: string;
     enabled: boolean;
   };
-  /** Polymarket Gamma API for draft feed. Optional. */
+  /** Polymarket Gamma + CLOB APIs for draft feed and resolution. */
   polymarket?: {
     apiUrl?: string; // default https://gamma-api.polymarket.com
-    apiKey?: string; // optional API key for rate limits
+    apiKey?: string; // Gamma rate limit; from POLYMARKET_API_KEY secret
+    clobUrl?: string; // default https://clob.polymarket.com
+    secret?: string; // CLOB L2; from POLYMARKET_SECRET secret
+    passphrase?: string; // CLOB L2; from POLYMARKET_PASSPHRASE secret
   };
   /** RPC URL for direct contract writes (e.g. draftProposer). Falls back to env RPC_URL. */
   rpcUrl?: string;

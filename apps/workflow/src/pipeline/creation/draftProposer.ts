@@ -115,7 +115,7 @@ export async function onDraftProposer(runtime: Runtime<WorkflowConfig>): Promise
     const fallbackFeed: import("../../types/feed").FeedConfig = {
       id: "draftProposer",
       type: "polymarket",
-      metadata: { limit: "5" },
+      metadata: { limit: "5", order: "volume_24hr" },
     };
     const origFeeds = runtime.config.feeds;
     (runtime.config as { feeds?: unknown }).feeds = [fallbackFeed];

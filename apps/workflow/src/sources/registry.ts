@@ -11,6 +11,7 @@ import { fetchCoinGeckoFeed } from "./coinGecko";
 import { fetchNewsApiFeed } from "./newsAPI";
 import { fetchGithubTrends } from "./githubTrends";
 import { fetchPolymarketEvents } from "./polymarketEvents";
+import { fetchPolymarketMarkets } from "./polymarketMarkets";
 import { fetchCustomFeed } from "./customFeeds";
 import type { PolymarketDraftInput } from "./polymarketEvents";
 
@@ -81,6 +82,10 @@ function fetchObservationsFromFeed(
     }
     case "polymarket": {
       const drafts = fetchPolymarketEvents(runtime, feed);
+      return drafts.map((d) => polymarketDraftToSourceObservation(d, feed));
+    }
+    case "polymarketMarkets": {
+      const drafts = fetchPolymarketMarkets(runtime, feed);
       return drafts.map((d) => polymarketDraftToSourceObservation(d, feed));
     }
     case "custom": {
