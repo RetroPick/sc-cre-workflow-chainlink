@@ -5,6 +5,7 @@
  */
 import type { DraftAuditRecord, SettlementAuditRecord } from "../../domain/audit";
 import type { SettlementArtifact } from "../../domain/settlementArtifact";
+import type { PrivacyAuditRecord } from "../../domain/privacyAudit";
 import type { Runtime } from "@chainlink/cre-sdk";
 
 function formatDraftRecord(record: DraftAuditRecord): string {

@@ -2,6 +2,8 @@
  * Draft artifact types for CRE Orchestration Layer.
  */
 import type { ResolutionPlan } from "./resolutionPlan";
+import type { PrivacyProfile } from "./privacy";
+import type { PrivacyProfile } from "./privacy";
 
 export type DraftArtifact = {
   draftId: string;
@@ -22,4 +24,6 @@ export type DraftArtifact = {
     explanation: number;
   };
   createdAt: number;
+  /** Privacy profile for confidential workflows. Default PUBLIC when unset. */
+  privacyProfile?: PrivacyProfile;
 };

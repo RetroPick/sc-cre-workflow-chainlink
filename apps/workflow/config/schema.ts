@@ -109,3 +109,18 @@ export function shouldRegisterScheduleResolver(config: WorkflowConfig): boolean 
     evm.marketRegistryAddress !== ZERO_ADDRESS
   );
 }
+
+export function shouldRegisterRiskCron(config: WorkflowConfig): boolean {
+  if (!config.monitoring?.enabled) return false;
+  const evm = config.evms?.[0];
+  if (!evm?.marketRegistryAddress || evm.marketRegistryAddress === ZERO_ADDRESS) {
+    return false;
+  }
+  const mon = config.monitoring;
+  const res = config.resolution;
+  const hasMarketIds =
+    (mon?.marketIds && mon.marketIds.length > 0) ||
+    (res?.marketIds && res.marketIds!.length > 0);
+  const useRelayer = mon?.useRelayerMarkets ?? res?.useRelayerMarkets === true;
+  return hasMarketIds || useRelayer;
+}

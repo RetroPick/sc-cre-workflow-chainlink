@@ -2,6 +2,7 @@
  * Draft record types for Market Drafting Pipeline (04_MarketDraftingPipeline.md).
  * Full lifecycle record for draft artifacts from analysis through claim and publish.
  */
+import type { PrivacyProfile } from "./privacy";
 import type { SourceObservation } from "./candidate";
 import type { UnderstandingOutput } from "./understanding";
 import type { RiskScores } from "./risk";
@@ -10,6 +11,7 @@ import type { ResolutionPlan } from "./resolutionPlan";
 import type { PolicyDecision } from "./policy";
 import type { DraftArtifact } from "./draft";
 import type { MarketBrief } from "./marketBrief";
+import type { PrivacyProfile } from "./privacy";
 
 export type DraftStatus =
   | "PENDING_CLAIM"
@@ -42,4 +44,6 @@ export type DraftRecord = {
   claimer?: string;
   marketId?: string;
   onchainDraftRef?: string;
+  /** Privacy profile for confidential workflows. Default PUBLIC when unset. */
+  privacyProfile?: PrivacyProfile;
 };

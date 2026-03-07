@@ -1,4 +1,5 @@
 import type { FeedConfig } from "./feed";
+import type { PrivacyProfile } from "../domain/privacy";
 
 export type ResolutionMode = "log" | "schedule" | "both";
 
@@ -71,5 +72,20 @@ export type WorkflowConfig = {
   analysis?: {
     useLlm?: boolean;
     useExplainability?: boolean;
+  };
+  /** Risk Monitoring & Compliance Enforcement Layer. When enabled, cron runs live-market monitoring. */
+  monitoring?: {
+    enabled?: boolean;
+    /** Cron schedule for risk checks (e.g. "*/5 * * * *" every 5 min). Default "*/5 * * * *". */
+    cronSchedule?: string;
+    /** Market IDs to monitor. Falls back to resolution.marketIds when unset. */
+    marketIds?: number[];
+    /** When true, fetch market IDs from GET {relayerUrl}/cre/markets. Falls back to resolution.useRelayerMarkets when unset. */
+    useRelayerMarkets?: boolean;
+  };
+  /** Privacy-Preserving Extensions (07). When enabled, supports confidential fetch, eligibility gating, private settlement. */
+  privacy?: {
+    enabled?: boolean;
+    defaultProfile?: PrivacyProfile;
   };
 };

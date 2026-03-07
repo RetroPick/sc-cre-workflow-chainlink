@@ -12,7 +12,8 @@ import { onCheckpointSubmit } from "./pipeline/checkpoint/checkpointSubmit";
 import { onCheckpointFinalize } from "./pipeline/checkpoint/checkpointFinalize";
 import { onCheckpointCancel } from "./pipeline/checkpoint/checkpointCancel";
 import type { WorkflowConfig } from "./types/config";
-import { validateWorkflowConfig, shouldRegisterLogTrigger, shouldRegisterScheduleResolver } from "./config/schema";
+import { validateWorkflowConfig, shouldRegisterLogTrigger, shouldRegisterScheduleResolver, shouldRegisterRiskCron } from "./config/schema";
+import { onRiskCron } from "./pipeline/monitoring/riskCronHandler";
 
 const SETTLEMENT_REQUESTED_SIGNATURE = "SettlementRequested(uint256,string)";
 
@@ -29,6 +30,9 @@ const initWorkflow = (config: WorkflowConfig) => {
   });
   const cronCancel = cronCapability.trigger({
     schedule: config.cronScheduleCancel || "0 0 */8 * * *",
+  });
+  const cronRisk = cronCapability.trigger({
+    schedule: config.monitoring?.cronSchedule || "*/5 * * * *",
   });
 
   const handlers = [
@@ -66,6 +70,10 @@ const initWorkflow = (config: WorkflowConfig) => {
 
   if (shouldRegisterScheduleResolver(config)) {
     handlers.push(cre.handler(cronTrigger, onScheduleResolver));
+  }
+
+  if (shouldRegisterRiskCron(config)) {
+    handlers.push(cre.handler(cronRisk, onRiskCron));
   }
 
   return handlers;

@@ -13,6 +13,9 @@ import { saveResolutionPlan } from "./pipeline/persistence/resolutionPlanStore";
 import { writeDraftRecord, markDraftPublished } from "./pipeline/creation/draftWriter";
 import { getDefaultDraftRepository } from "./pipeline/persistence/draftRepository";
 import { revalidateForPublish } from "./pipeline/creation/publishRevalidation";
+import { requiresEligibilityCheck } from "./pipeline/privacy/privacyRouter";
+import { getDefaultEligibilityProvider } from "./pipeline/privacy/providers";
+import { makePrivacyAuditRecord, logPrivacyAudit } from "./pipeline/privacy/privacyAudit";
 
 // Interface for the HTTP Payload - create market
 interface CreateMarketPayload {
@@ -25,6 +28,8 @@ interface CreateMarketPayload {
   requestedBy?: string;
   /** When true with orchestration.enabled: run analysis and return preview (no create) */
   preview?: boolean;
+  /** Privacy profile for the market. Per 07_PrivacyPreservingExtensions.md. */
+  privacyProfile?: import("./domain/privacy").PrivacyProfile;
 }
 
 // Response type for proposal preview / draft creation
@@ -115,6 +120,7 @@ function normalizeProposalToObservation(payload: CreateMarketPayload): SourceObs
     tags: category ? [category] : undefined,
     eventTime: resolveTime,
     raw: feedItem,
+    privacyProfile: payload.privacyProfile,
   };
 }
 
@@ -138,6 +144,33 @@ export async function onHttpTrigger(runtime: Runtime<Config>, payload: HTTPPaylo
     if (!record) {
       runtime.log("[Publish] Draft not found: " + inputData.draftId);
       return JSON.stringify({ ok: false, error: "Draft not found" });
+    }
+    // Eligibility gate for COMPLIANCE_GATED markets (07_PrivacyPreservingExtensions)
+    const profile = record.draft?.privacyProfile ?? "PUBLIC";
+    if (
+      requiresEligibilityCheck(profile) &&
+      runtime.config.privacy?.enabled
+    ) {
+      const eligibilityProvider = getDefaultEligibilityProvider();
+      const decision = await eligibilityProvider.checkEligibility({
+        wallet: inputData.creator,
+        marketId: inputData.draftId,
+        policyProfile: "RETROPICK_RESTRICTED_MARKET_V1",
+      });
+      const auditRecord = makePrivacyAuditRecord({
+        marketId: inputData.draftId,
+        workflowType: "ELIGIBILITY_CHECK",
+        privacyProfile: profile,
+        providerType: "MockEligibilityProvider",
+        actionTaken: decision.allowed ? "ALLOWED" : "DENIED",
+        disclosedOutput: { allowed: decision.allowed, reasonCode: decision.reasonCode },
+        privateReferenceId: decision.privateReferenceId,
+      });
+      logPrivacyAudit(auditRecord, runtime);
+      if (!decision.allowed) {
+        runtime.log("[Publish] Eligibility denied: " + decision.reasonCode);
+        return JSON.stringify({ ok: false, error: decision.reasonCode });
+      }
     }
     const revalidation = revalidateForPublish(record, {
       draftId: inputData.draftId,

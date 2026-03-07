@@ -10,6 +10,7 @@ import type { EvidenceBundle } from "../domain/evidence";
 import type { ResolutionPlan } from "../domain/resolutionPlan";
 import type { PolicyDecision } from "../domain/policy";
 import type { DraftArtifact } from "../domain/draft";
+import type { PrivacyProfile } from "../domain/privacy";
 import type { LlmProvider } from "../models/interfaces";
 import { DRAFT_SYNTHESIS_SYSTEM_PROMPT, buildDraftUserPrompt } from "../models/prompts/draft.prompt";
 
@@ -22,6 +23,8 @@ export type SynthesizeDraftInput = {
   policy: PolicyDecision;
   llm?: LlmProvider;
   useLlm?: boolean;
+  /** Privacy profile for the draft. Stored on draft when set. */
+  privacyProfile?: PrivacyProfile;
 };
 
 export async function synthesizeDraft(input: SynthesizeDraftInput): Promise<DraftArtifact> {
@@ -83,5 +86,6 @@ export async function synthesizeDraft(input: SynthesizeDraftInput): Promise<Draf
       explanation: 0.8,
     },
     createdAt: Math.floor(Date.now() / 1000),
+    privacyProfile: input.privacyProfile,
   };
 }
