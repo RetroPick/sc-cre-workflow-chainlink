@@ -19,6 +19,7 @@ Chainlink CRE (Request-and-Execute) workflow for RetroPick prediction markets. O
 - [Configuration Quick Reference](#configuration-quick-reference)
 - [Publish-from-Draft](#publish-from-draft)
 - [Relayer Checkpoint Flow](#relayer-checkpoint-flow)
+- [Frontend Integration](#frontend-integration)
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
 - [Scripts](#scripts)
@@ -700,6 +701,17 @@ Creator must sign EIP-712 `PublishFromDraft`. See `contracts/publishFromDraft.ts
 
 ---
 
+## Frontend Integration
+
+For integrating the frontend with the CRE workflow and relayer, see [docs/FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md). It covers:
+
+- Relayer API contract (checkpoint endpoints, sig storage flow)
+- Frontend checklist (relayer URL, sig submission timing)
+- HTTP trigger API (create market, publish-from-draft)
+- Readiness checklist and known limitations
+
+---
+
 ## Troubleshooting
 
 | Error | Fix |
@@ -727,6 +739,7 @@ Creator must sign EIP-712 `PublishFromDraft`. See `contracts/publishFromDraft.ts
 | [docs/Configuration.md](docs/Configuration.md) | Config reference |
 | [docs/ResolutionFlow.md](docs/ResolutionFlow.md) | Resolution trigger → AI → chain |
 | [docs/CreationFlows.md](docs/CreationFlows.md) | Feed, publish-from-draft, draftProposer |
+| [docs/FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md) | Relayer contract, frontend checklist, integration readiness |
 | [.DEMO.md](.DEMO.md) | Demo quick start |
 | [.DEMOExplanation.md](.DEMOExplanation.md) | Demo pipeline flowcharts and explanations |
 

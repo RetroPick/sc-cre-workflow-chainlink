@@ -51,6 +51,9 @@ export function getResolutionPlan(
 /**
  * Associate a resolution plan with a marketId after market creation.
  * Call when marketId becomes known (e.g. from tx logs).
+ *
+ * TODO: When marketCreator is enhanced to return marketIds from MarketCreated events,
+ * call this from httpCallback/discoveryCron after createMarkets succeeds.
  */
 export function associatePlanWithMarket(
   marketId: string | number,

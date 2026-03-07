@@ -309,5 +309,6 @@ export async function onHttpTrigger(runtime: Runtime<Config>, payload: HTTPPaylo
 
   const feedItem = buildFeedItemFromPayload(createPayload);
   const marketInput = generateMarketInput(feedItem, requestedBy);
-  return createMarkets(runtime, [marketInput]);
+  const result = createMarkets(runtime, [marketInput]);
+  return JSON.stringify({ ok: true, message: result });
 }
