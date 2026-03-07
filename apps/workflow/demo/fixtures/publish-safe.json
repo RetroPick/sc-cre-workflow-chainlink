@@ -1,0 +1,14 @@
+{
+  "draftId": "0x3c37c2c1d9bfd2bfe058983a55ac0c0f609f2e7706be7db6175f4075120fc494",
+  "creator": "0x1111111111111111111111111111111111111111",
+  "params": {
+    "question": "Will ETH exceed $6000 by December 31, 2026?",
+    "marketType": 0,
+    "outcomes": ["Yes", "No"],
+    "timelineWindows": [],
+    "resolveTime": 1798675200,
+    "tradingOpen": 0,
+    "tradingClose": 0
+  },
+  "claimerSig": "0xdeadbeef"
+}

@@ -4,27 +4,27 @@
  * and the four canonical test cases from the build plan.
  */
 import { describe, test, expect } from "bun:test";
-import { evaluatePolicy } from "../policy/evaluate";
-import { buildOracleability } from "../analysis/oracleability";
-import { verifyUnresolvedState } from "../analysis/unresolvedCheck";
-import { buildResolutionPlan } from "../analysis/buildResolutionPlan";
-import { BANNED_CATEGORIES, REVIEW_ONLY_CATEGORIES } from "../policy/bannedCategories";
-import { HARD_BANNED_TERMS, GAMBLING_TERMS } from "../policy/bannedTerms";
-import { POLICY_THRESHOLDS, POLICY_VERSION } from "../policy/thresholds";
-import { SOURCE_TYPE_BASE_TRUST } from "../policy/sourceTrust";
-import { analyzeCandidate } from "../pipeline/orchestration/analyzeCandidate";
+import { evaluatePolicy } from "../src/policy/evaluate";
+import { buildOracleability } from "../src/analysis/oracleability";
+import { verifyUnresolvedState } from "../src/analysis/unresolvedCheck";
+import { buildResolutionPlan } from "../src/analysis/buildResolutionPlan";
+import { BANNED_CATEGORIES, REVIEW_ONLY_CATEGORIES } from "../src/policy/bannedCategories";
+import { HARD_BANNED_TERMS, GAMBLING_TERMS } from "../src/policy/bannedTerms";
+import { POLICY_THRESHOLDS, POLICY_VERSION } from "../src/policy/thresholds";
+import { SOURCE_TYPE_BASE_TRUST } from "../src/policy/sourceTrust";
+import { analyzeCandidate } from "../src/pipeline/orchestration/analyzeCandidate";
 import {
   createDefaultEvidenceService,
   MockEvidenceProvider,
   type EvidenceProvider,
   type RawEvidenceCandidate,
-} from "../analysis/evidence";
-import type { SourceObservation } from "../domain/candidate";
-import type { UnderstandingOutput } from "../domain/understanding";
-import type { RiskScores } from "../domain/risk";
-import type { EvidenceBundle } from "../domain/evidence";
-import type { ResolutionPlan } from "../domain/resolutionPlan";
-import type { PolicyInput } from "../domain/policy";
+} from "../src/analysis/evidence";
+import type { SourceObservation } from "../src/domain/candidate";
+import type { UnderstandingOutput } from "../src/domain/understanding";
+import type { RiskScores } from "../src/domain/risk";
+import type { EvidenceBundle } from "../src/domain/evidence";
+import type { ResolutionPlan } from "../src/domain/resolutionPlan";
+import type { PolicyInput } from "../src/domain/policy";
 
 const mockRuntime = { config: {}, log: () => {} } as any;
 
@@ -738,15 +738,15 @@ describe("Safety Compliance — Case C (Already Resolved)", () => {
     const evidenceService = createDefaultEvidenceService(resolvedProvider);
 
     const services = {
-      classify: (await import("../analysis/classify")).classifyCandidate,
-      enrich: (await import("../analysis/enrich")).enrichContext,
-      risk: (await import("../analysis/riskScore")).scoreRisk,
-      evidence: async (o: SourceObservation, u: import("../domain/understanding").UnderstandingOutput) =>
+      classify: (await import("../src/analysis/classify")).classifyCandidate,
+      enrich: (await import("../src/analysis/enrich")).enrichContext,
+      risk: (await import("../src/analysis/riskScore")).scoreRisk,
+      evidence: async (o: SourceObservation, u: import("../src/domain/understanding").UnderstandingOutput) =>
         evidenceService.fetch(o, u),
-      resolution: (await import("../analysis/buildResolutionPlan")).buildResolutionPlan,
-      policy: (await import("../policy/evaluate")).evaluatePolicy,
-      draft: (await import("../analysis/draftSynthesis")).synthesizeDraft,
-      explain: (await import("../analysis/explain")).generateMarketBrief,
+      resolution: (await import("../src/analysis/buildResolutionPlan")).buildResolutionPlan,
+      policy: (await import("../src/policy/evaluate")).evaluatePolicy,
+      draft: (await import("../src/analysis/draftSynthesis")).synthesizeDraft,
+      explain: (await import("../src/analysis/explain")).generateMarketBrief,
     };
 
     const result = await analyzeCandidate(mockRuntime, obs, {

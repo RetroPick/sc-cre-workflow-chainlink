@@ -4,22 +4,22 @@
  * D (L6 settlement inference), and orchestration integration.
  */
 import { describe, test, expect } from "bun:test";
-import type { LlmProvider } from "../models/interfaces";
-import { createStubEmbeddingProvider } from "../models/providers/embeddingProvider";
-import { classifyCandidate } from "../analysis/classify";
-import { scoreRisk } from "../analysis/riskScore";
-import { synthesizeDraft } from "../analysis/draftSynthesis";
-import { generateMarketBrief } from "../analysis/explain";
-import { inferSettlement } from "../analysis/settlementInference";
-import { analyzeCandidate } from "../pipeline/orchestration/analyzeCandidate";
-import type { SourceObservation } from "../domain/candidate";
-import type { UnderstandingOutput } from "../domain/understanding";
-import type { RiskScores } from "../domain/risk";
-import type { EvidenceBundle } from "../domain/evidence";
-import type { ResolutionPlan } from "../domain/resolutionPlan";
-import type { DraftArtifact } from "../domain/draft";
-import type { PolicyDecision } from "../domain/policy";
-import { resolveFromPlan } from "../pipeline/resolution/resolveFromPlan";
+import type { LlmProvider } from "../src/models/interfaces";
+import { createStubEmbeddingProvider } from "../src/models/providers/embeddingProvider";
+import { classifyCandidate } from "../src/analysis/classify";
+import { scoreRisk } from "../src/analysis/riskScore";
+import { synthesizeDraft } from "../src/analysis/draftSynthesis";
+import { generateMarketBrief } from "../src/analysis/explain";
+import { inferSettlement } from "../src/analysis/settlementInference";
+import { analyzeCandidate } from "../src/pipeline/orchestration/analyzeCandidate";
+import type { SourceObservation } from "../src/domain/candidate";
+import type { UnderstandingOutput } from "../src/domain/understanding";
+import type { RiskScores } from "../src/domain/risk";
+import type { EvidenceBundle } from "../src/domain/evidence";
+import type { ResolutionPlan } from "../src/domain/resolutionPlan";
+import type { DraftArtifact } from "../src/domain/draft";
+import type { PolicyDecision } from "../src/domain/policy";
+import { resolveFromPlan } from "../src/pipeline/resolution/resolveFromPlan";
 
 // -----------------------------------------------------------------------------
 // Mock providers for deterministic tests (no real API calls)

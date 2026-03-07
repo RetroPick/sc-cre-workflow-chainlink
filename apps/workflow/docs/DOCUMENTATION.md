@@ -9,15 +9,17 @@ Comprehensive documentation for the RetroPick Chainlink CRE (Request-and-Execute
 1. [Quick Start](#quick-start)
 2. [Prerequisites](#prerequisites)
 3. [Key Concepts](#key-concepts)
-4. [Architecture](#architecture)
-5. [Configuration](#configuration)
-6. [Handlers Reference](#handlers-reference)
-7. [Resolution Flow](#resolution-flow)
-8. [Checkpoint Flow](#checkpoint-flow)
-9. [Relayer Integration](#relayer-integration)
-10. [Contract Integration](#contract-integration)
-11. [Creation Flows](#creation-flows)
-12. [Troubleshooting](#troubleshooting)
+4. [Layer Architecture Summary](#layer-architecture-summary)
+5. [Architecture](#architecture)
+6. [Configuration](#configuration)
+7. [Handlers Reference](#handlers-reference)
+8. [Resolution Flow](#resolution-flow)
+9. [Checkpoint Flow](#checkpoint-flow)
+10. [Relayer Integration](#relayer-integration)
+11. [Contract Integration](#contract-integration)
+12. [Creation Flows](#creation-flows)
+13. [Forecasting Intelligence Engine Layers](#forecasting-intelligence-engine-layers)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -42,6 +44,46 @@ Comprehensive documentation for the RetroPick Chainlink CRE (Request-and-Execute
 - **CREReceiver:** On-chain entrypoint for outcome reports (resolution) and checkpoint reports (0x03)
 - **CREPublishReceiver:** Separate entrypoint for publish-from-draft (market creation)
 - **Relayer:** Off-chain trading engine; builds checkpoint payloads; CRE fetches and delivers on-chain
+
+---
+
+## Layer Architecture Summary
+
+When `orchestration.enabled` is true, the workflow operates as a **Forecasting Intelligence Engine** composed of layered subsystems. Each layer has a dedicated spec document:
+
+| Layer | Description | Status | Doc |
+|-------|-------------|--------|-----|
+| **CRE Orchestration** | Multi-source discovery, analysis core, policy-first creation | Implemented | [CREOrchestrationLayer.md](CREOrchestrationLayer.md) |
+| **Market Drafting Pipeline** | Two-phase publication: Draft Generation → User Claim & Publish | Implemented | [MarketDraftingPipelineLayer.md](MarketDraftingPipelineLayer.md) |
+| **Safety & Compliance** | Policy engine, banned categories/terms, resolution certainty, audit | Implemented | [SafetyAndComplienceLayer.md](SafetyAndComplienceLayer.md) |
+| **ML Models** | 7-layer stack (L0–L6): classify, risk, oracleability, draft synthesis, explainability, settlement | Implemented | [MLModels.md](MLModels.md) |
+| **AI Event-Driven** | Deterministic resolution, multi-LLM consensus, settlement artifacts | Implemented | [AIDrivenLayerEvent.md](AIDrivenLayerEvent.md) |
+| **Risk Monitoring** | Live-market risk monitoring, compliance enforcement | Implemented | [RiskMonitoringCOmplience.md](RiskMonitoringCOmplience.md) |
+| **Privacy Extensions** | Confidential fetch, eligibility gating, controlled release | Partial | [RiskPrivacyExtension.md](RiskPrivacyExtension.md) |
+
+### High-Level Data Flow (Orchestration Enabled)
+
+```
+Trigger (cron/HTTP/log)
+  → Orchestration (discoveryCron, analyzeCandidate)
+  → Analysis (ML: classify, risk, evidence, oracleability, draft synthesis)
+  → Policy (Safety: ALLOW/REVIEW/REJECT)
+  → Draft Artifact (Market Drafting: writeDraftRecord or createMarkets)
+  → Resolution (AI Event-Driven: resolutionExecutor, llmConsensus)
+  → Onchain (writeReport)
+```
+
+When `orchestration.enabled` is true, `discoveryCron` is the primary creation entry; it fetches from the source registry, dedupes, runs `analyzeCandidate` per observation, and either `writeDraftRecord` (when `draftingPipeline` is true) or `createMarkets` for ALLOW items. Resolution uses `resolveFromPlan` → `resolutionExecutor` (deterministic, multi_source_deterministic, ai_assisted, human_review); `onRiskCron` runs live-market monitoring when `monitoring.enabled` is true.
+
+### Legacy Data Flow (Orchestration Disabled)
+
+```
+Cron (scheduleTrigger)
+  → Feeds → fetchFeed → generateMarketInput → createMarkets
+  → writeReport to MarketFactory
+```
+
+When orchestration is disabled, the legacy path uses `scheduleTrigger` to fetch from feeds and create markets directly.
 
 ---
 
@@ -127,16 +169,30 @@ Trigger (cron/HTTP/EVM log) → Handler runs on DON
 | `0x03` | CREReceiver | submitSession | SettlementRouter → ChannelSettlement.submitCheckpointFromPayload |
 | `0x04` | CREPublishReceiver | — | MarketFactory.createFromDraft |
 
+### Resolution Pipeline
+
+When `orchestration.enabled` is true and a stored `ResolutionPlan` exists, resolution flows through [resolveFromPlan.ts](../pipeline/resolution/resolveFromPlan.ts) → [resolutionExecutor.ts](../pipeline/resolution/resolutionExecutor.ts), which routes by `resolutionPlan.resolutionMode`:
+
+| Mode | Behavior |
+|------|----------|
+| `deterministic` | Fetch from `official_api` or `onchain_event` source; evaluate `resolutionPredicate`; return outcome |
+| `multi_source_deterministic` | Fetch all primary sources; majority wins; fallback to fallback sources if needed |
+| `ai_assisted` | Delegate to [llmConsensus.ts](../pipeline/resolution/llmConsensus.ts) — multi-LLM parallel execution, quorum rules |
+| `human_review` | Return `REVIEW_REQUIRED`; artifact stored, no `writeReport` |
+
+The executor validates the result (outcomeIndex in range, confidence >= minThreshold) and produces a `SettlementArtifact` before `writeReport`. See [Resolution Flow](#resolution-flow) and [AIDrivenLayerEvent.md](AIDrivenLayerEvent.md).
+
 ### Workflow Handlers by Flow
 
 | Flow | Handlers | Trigger |
 |------|----------|---------|
+| Discovery (orchestration) | onDiscoveryCron | Cron |
 | Resolution (log) | onLogTrigger | EVM log (`SettlementRequested`) |
 | Resolution (schedule) | onScheduleResolver | Cron |
 | Checkpoint submit | onCheckpointSubmit | Cron |
 | Checkpoint finalize | onCheckpointFinalize | Cron (finalize schedule) |
 | Checkpoint cancel | onCheckpointCancel | Cron (cancel schedule) |
-| Market creation (feed) | scheduleTrigger → marketCreator | Cron |
+| Risk monitoring | onRiskCron | Cron (monitoring.cronSchedule) |
 | Publish-from-draft | onHttpTrigger → publishFromDraft | HTTP |
 | Legacy session | sessionSnapshot | Cron |
 | Draft proposal | onDraftProposer | Cron |
@@ -153,7 +209,7 @@ apps/workflow/
 ├── gpt.ts                     # AI resolution: DeepSeek API, askGPTForOutcome, binary/categorical/timeline
 │
 ├── config/                    # Config validation
-│   └── schema.ts              # validateWorkflowConfig, shouldRegisterLogTrigger, shouldRegisterScheduleResolver
+│   └── schema.ts              # validateWorkflowConfig, shouldRegisterLogTrigger, shouldRegisterScheduleResolver, shouldRegisterRiskCron
 │
 ├── types/
 │   ├── config.ts              # WorkflowConfig, ResolutionMode
@@ -161,8 +217,11 @@ apps/workflow/
 │
 ├── pipeline/                  # Active handlers (primary implementation)
 │   ├── resolution/
-│   │   ├── logTrigger.ts      # EVM log SettlementRequested → read market → AI → writeReport
-│   │   └── scheduleResolver.ts # Cron poll marketIds → read MarketRegistry → AI → writeReport
+│   │   ├── logTrigger.ts      # EVM log SettlementRequested → resolveFromPlan → writeReport
+│   │   ├── scheduleResolver.ts # Cron poll marketIds → resolveFromPlan → writeReport
+│   │   ├── resolveFromPlan.ts  # Load ResolutionPlan, call resolutionExecutor, return SettlementArtifact
+│   │   ├── resolutionExecutor.ts # Routes by resolutionPlan.resolutionMode (deterministic, ai_assisted, human_review)
+│   │   └── llmConsensus.ts    # Multi-LLM parallel execution and consensus for ai_assisted mode
 │   ├── checkpoint/
 │   │   ├── checkpointSubmit.ts   # GET /health, /cre/checkpoints → POST build → writeReport(0x03)
 │   │   ├── checkpointFinalize.ts # POST /cre/finalize/:sessionId (relayer submits tx)
@@ -171,6 +230,8 @@ apps/workflow/
 │       ├── scheduleTrigger.ts   # Feeds → fetchFeed → generateMarketInput → createMarkets
 │       ├── marketCreator.ts     # encode + writeReport to marketFactoryAddress
 │       ├── publishFromDraft.ts  # encodePublishReport(0x04) → writeReport to CREPublishReceiver
+│       ├── draftWriter.ts       # writeDraftRecord, markDraftClaimed, markDraftPublished (DraftRepository)
+│       ├── publishRevalidation.ts # revalidateForPublish — draft freshness, params match, unresolved
 │       └── draftProposer.ts     # Polymarket Gamma API → proposeDraft (direct RPC)
 │
 ├── jobs/                      # Thin wrappers (deprecated; re-export pipeline)
@@ -208,18 +269,14 @@ apps/workflow/
 │   └── e2e/
 │       └── workflowE2E.test.ts # End-to-end workflow tests
 │
-├── .docs/                     # Internal planning (e.g. UpgradePlan.md)
-├── test/                      # Tests
-│   ├── integration.test.ts    # Integration tests
-│   └── e2e/
-│       └── workflowE2E.test.ts  # End-to-end workflow tests
-├── .docs/                     # Internal planning (e.g. UpgradePlan.md)
-├── test/                      # Tests
-│   ├── integration.test.ts    # Integration tests
-│   └── e2e/
-│       └── workflowE2E.test.ts # End-to-end workflow tests
-├── .docs/                     # Internal planning docs
-│   └── UpgradePlan.md         # Upgrade/migration plans
+├── domain/                    # Domain types (candidate, understanding, evidence, resolutionPlan, draft, draftRecord, marketBrief, settlementArtifact)
+├── analysis/                  # Analysis core (classify, riskScore, oracleability, unresolvedCheck, buildResolutionPlan, draftSynthesis, explain, settlementInference)
+├── policy/                    # Policy engine (evaluate, bannedCategories, bannedTerms, sourceTrust, thresholds)
+├── models/                    # ML providers (interfaces, providers, prompts)
+├── pipeline/orchestration/    # analyzeCandidate, discoveryCron
+├── pipeline/privacy/          # controlledRelease, confidentialFetch, eligibilityCheck, privacyRouter
+├── pipeline/monitoring/      # riskCron, collectMetrics, applyEnforcement
+├── docs/                      # Documentation (this folder; layer specs: CREOrchestrationLayer, MLModels, etc.)
 ├── config.example.json        # Example config
 ├── config.staging.json        # Staging config
 ├── config.production.json     # Production config
@@ -241,6 +298,13 @@ apps/workflow/
 | **sources/*.ts** | Each fetches from external API and returns `FeedItem[]`; `scheduleTrigger` dispatches by `feed.type`. |
 | **builders/generateMarket.ts** | `generateMarketInput(feedItem, requestedBy)` — validates, hashes externalId, produces MarketInput. |
 | **builders/buildFinalStateRequest.ts** | Legacy session: encodes 0x03-prefixed payload for SessionFinalizer path. |
+| **pipeline/orchestration/analyzeCandidate.ts** | Analysis core entrypoint: classify, risk, evidence, oracleability, unresolved check, buildResolutionPlan, draft synthesis. Returns AnalysisResult with policy, draft, marketBrief. |
+| **pipeline/orchestration/discoveryCron.ts** | Primary creation handler when orchestration enabled: registry → dedupe → analyzeCandidate per observation → writeDraftRecord or createMarkets. |
+| **pipeline/resolution/resolutionExecutor.ts** | Routes by resolutionPlan.resolutionMode: deterministic, multi_source_deterministic, ai_assisted (llmConsensus), human_review. Produces SettlementArtifact. |
+| **pipeline/resolution/llmConsensus.ts** | Multi-LLM parallel execution for ai_assisted mode; quorum rules, min confidence; returns outcomeIndex and confidence or null. |
+| **pipeline/creation/draftWriter.ts** | writeDraftRecord, markDraftClaimed, markDraftPublished, expireDraft; DraftRepository interface. |
+| **pipeline/creation/publishRevalidation.ts** | revalidateForPublish: draft exists, not expired, status PENDING_CLAIM/CLAIMED, params match, unresolved check. |
+| **pipeline/monitoring/riskCronHandler.ts** | Live-market risk monitoring: collect metrics → compute signals → apply enforcement (NoopEnforcementApplier logs only; on-chain PAUSE/DELIST planned). |
 
 #### gpt.ts (AI Resolution) — Detailed
 
@@ -266,8 +330,10 @@ Market outcome resolution via DeepSeek. Used by `logTrigger.ts` and `scheduleRes
 
 | Flow | Entry | Key Files | Exit |
 |------|-------|-----------|------|
-| **Resolution (log)** | EVM log | `logTrigger.ts` → `gpt.ts` → `reportFormats.ts` | CREReceiver |
-| **Resolution (schedule)** | Cron | `scheduleResolver.ts` → `marketRegistry.ts` → `gpt.ts` → `reportFormats.ts` | CREReceiver |
+| **Orchestration (discovery)** | Cron | `discoveryCron.ts` → `analyzeCandidate.ts` → `writeDraftRecord` / `marketCreator.ts` | DraftRepository / MarketFactory |
+| **Risk monitoring** | Cron | `riskCronHandler.ts` → collectMetrics → applyEnforcement | Log / (planned: on-chain) |
+| **Resolution (log)** | EVM log | `logTrigger.ts` → `resolveFromPlan` → `resolutionExecutor` / `gpt.ts` → `reportFormats.ts` | CREReceiver |
+| **Resolution (schedule)** | Cron | `scheduleResolver.ts` → `resolveFromPlan` → `resolutionExecutor` / `gpt.ts` → `reportFormats.ts` | CREReceiver |
 | **Checkpoint submit** | Cron | `checkpointSubmit.ts` → `utils/http.ts` (relayer) | CREReceiver (0x03) |
 | **Checkpoint finalize/cancel** | Cron | `checkpointFinalize.ts` / `checkpointCancel.ts` → `utils/http.ts` | Relayer submits tx |
 | **Feed creation** | Cron | `scheduleTrigger.ts` → `sources/*` → `generateMarket.ts` → `marketCreator.ts` | MarketFactory |
@@ -278,6 +344,13 @@ Market outcome resolution via DeepSeek. Used by `logTrigger.ts` and `scheduleRes
 
 - [packages/contracts/docs/abi/docs/cre/CREPipelineDiagram.md](../../packages/contracts/docs/abi/docs/cre/CREPipelineDiagram.md) — Contract-level pipeline diagrams
 - [packages/contracts/docs/IntegrationMatrix.md](../../packages/contracts/docs/IntegrationMatrix.md) — Report types and ingress chain
+- [CREOrchestrationLayer.md](CREOrchestrationLayer.md) — Orchestration layer spec
+- [MLModels.md](MLModels.md) — ML models chapter
+- [SafetyAndComplienceLayer.md](SafetyAndComplienceLayer.md) — Safety & compliance
+- [MarketDraftingPipelineLayer.md](MarketDraftingPipelineLayer.md) — Market drafting pipeline
+- [AIDrivenLayerEvent.md](AIDrivenLayerEvent.md) — AI event-driven settlement
+- [RiskMonitoringCOmplience.md](RiskMonitoringCOmplience.md) — Risk monitoring
+- [RiskPrivacyExtension.md](RiskPrivacyExtension.md) — Privacy extensions
 
 ---
 
@@ -304,7 +377,7 @@ Full reference for `WorkflowConfig` used by the CRE workflow. Edit `config.stagi
 
 | Field | Default | Purpose |
 |-------|---------|---------|
-| `cronSchedule` | `"*/15 * * * *"` | Main cron: scheduleTrigger, draftProposer, sessionSnapshot, checkpointSubmit, scheduleResolver |
+| `cronSchedule` | `"*/15 * * * *"` | Main cron: discoveryCron (or scheduleTrigger when orchestration disabled), draftProposer, sessionSnapshot, checkpointSubmit, scheduleResolver |
 | `cronScheduleFinalize` | Same as cronSchedule | Separate cron for checkpoint finalize. **Recommended:** Run at least every 35–40 min (e.g. `0 */35 * * * *`) since challenge window is 30 min. |
 | `cronScheduleCancel` | `"0 0 */8 * * *"` | Cron for checkpoint cancel (every 8 hr). Run at least every 8 hr; CANCEL_DELAY is 6 hr. |
 
@@ -345,6 +418,49 @@ Example:
 - **log**: Event-driven; listens for `SettlementRequested` on `marketAddress`. Requires `evms[0].marketAddress`.
 - **schedule**: Cron polls `marketIds` (and/or relayer when `useRelayerMarkets`); resolves markets where `resolveTime <= now`. Requires `evms[0].marketRegistryAddress`.
 - **both**: Registers both log trigger and schedule resolver.
+
+### Resolution (Extended)
+
+When `orchestration.enabled` is true and resolution uses the AI Event-Driven layer:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `resolution.multiLlmEnabled` | `boolean` | Enable multi-LLM consensus for ai_assisted mode. When true, runs multiple providers in parallel. |
+| `resolution.llmProviders` | `string[]` | LLM provider IDs for multi-LLM (e.g. `["openai", "anthropic"]`). Used when multiLlmEnabled is true. |
+| `resolution.minConfidence` | `number` | Minimum confidence (0–10000) for settlement. Default 7000 (70%). |
+| `resolution.consensusQuorum` | `number` | Min number of agreeing LLM providers for multi-LLM. Default 2. |
+
+### Orchestration
+
+| Field | Purpose |
+|-------|---------|
+| `orchestration.enabled` | When true, discoveryCron is primary; analyzeCandidate runs per observation. |
+| `orchestration.draftingPipeline` | When true, ALLOW creates draft only (writeDraftRecord, PENDING_CLAIM); no direct createMarkets. When false, ALLOW → createMarkets for backward compat. |
+
+### Analysis
+
+| Field | Purpose |
+|-------|---------|
+| `analysis.useLlm` | Use LLM for classify, riskScore, draftSynthesis when true. Fallback to rules when false. |
+| `analysis.useExplainability` | When true, generate MarketBrief (explainability) for approved drafts. |
+
+### Monitoring
+
+| Field | Purpose |
+|-------|---------|
+| `monitoring.enabled` | Enable onRiskCron for live-market risk monitoring. |
+| `monitoring.cronSchedule` | Cron for risk checks (e.g. `"*/5 * * * *"` every 5 min). Default `"*/5 * * * *"`. |
+| `monitoring.marketIds` | Market IDs to monitor. Falls back to resolution.marketIds when unset. |
+| `monitoring.useRelayerMarkets` | When true, fetch market IDs from relayer. Falls back to resolution.useRelayerMarkets when unset. |
+
+**Conditional registration:** onRiskCron is registered when `monitoring.enabled` is true and marketIds or useRelayerMarkets is available.
+
+### Privacy
+
+| Field | Purpose |
+|-------|---------|
+| `privacy.enabled` | Enable privacy-preserving extensions (confidential fetch, eligibility gating, controlled release). |
+| `privacy.defaultProfile` | Default PrivacyProfile: `PUBLIC` \| `PROTECTED_SOURCE` \| `PRIVATE_INPUT` \| `COMPLIANCE_GATED`. |
 
 ### Curated Path (Draft Board)
 
@@ -457,20 +573,23 @@ Per-handler documentation for all CRE workflow handlers registered in [main.ts](
 
 | Handler | Trigger | Config | Purpose |
 |---------|---------|--------|---------|
-| scheduleTrigger | cron | feeds, creatorAddress | Feed-driven market creation |
+| onDiscoveryCron | cron | orchestration, feeds, sources | Primary creation when orchestration enabled: registry → analyzeCandidate → writeDraftRecord/createMarkets |
+| scheduleTrigger | cron | feeds, creatorAddress | Feed-driven market creation (legacy; discoveryCron is primary when orchestration enabled) |
 | draftProposer | cron | curatedPath, polymarket, rpcUrl | Polymarket → MarketDraftBoard.proposeDraft |
 | sessionSnapshot | cron | yellowSessions, creReceiverAddress | Legacy SessionFinalizer path |
 | onCheckpointSubmit | cron | relayerUrl, creReceiverAddress | V3 checkpoint delivery via CREReceiver |
 | onCheckpointFinalize | cronFinalize | relayerUrl | Relayer submits finalizeCheckpoint after 30 min |
 | onCheckpointCancel | cronCancel | relayerUrl | Relayer submits cancelPendingCheckpoint after 6 hr |
 | onScheduleResolver | cron | resolution.marketIds, marketRegistryAddress | V3 MarketRegistry schedule-based resolution |
-| onLogTrigger | Log | marketAddress | Legacy: SettlementRequested → CREReceiver |
+| onLogTrigger | Log | marketAddress | SettlementRequested → resolveFromPlan → CREReceiver |
+| onRiskCron | cronRisk | monitoring | Live-market risk monitoring: collect metrics → signals → enforcement |
 | onHttpTrigger | HTTP | crePublishReceiverAddress | Publish-from-draft when payload has draftId, creator, params, claimerSig |
 
 ### Conditional Registration
 
 - **onLogTrigger:** Registered when `resolution.mode` is `"log"` or `"both"` AND `evms[0].marketAddress` is set and non-zero.
 - **onScheduleResolver:** Registered when `resolution.mode` is `"schedule"` or `"both"` AND `evms[0].marketRegistryAddress` is set and non-zero.
+- **onRiskCron:** Registered when `monitoring.enabled` is true and `monitoring.marketIds` or `monitoring.useRelayerMarkets` is available.
 
 ### Trigger Schedules
 
@@ -482,12 +601,27 @@ Per-handler documentation for all CRE workflow handlers registered in [main.ts](
 
 ### Handler Details
 
+#### onDiscoveryCron
+
+- **Source:** [pipeline/orchestration/discoveryCron.ts](../pipeline/orchestration/discoveryCron.ts)
+- **Flow:** Fetches observations from source registry → dedupe → for each: `analyzeCandidate` → policy → `writeDraftRecord` (when `draftingPipeline`) or `createMarkets` for ALLOW items.
+- **Requires:** `orchestration.enabled`; feeds or sources for observations.
+- **Note:** Primary creation handler when orchestration enabled; scheduleTrigger is legacy fallback.
+
+#### onRiskCron
+
+- **Source:** [pipeline/monitoring/riskCronHandler.ts](../pipeline/monitoring/riskCronHandler.ts)
+- **Flow:** Collect metrics for monitored markets → compute risk signals → apply enforcement (NoopEnforcementApplier logs only; on-chain PAUSE/DELIST planned).
+- **Requires:** `monitoring.enabled`, `monitoring.marketIds` or `monitoring.useRelayerMarkets`.
+- **Cron:** Uses `monitoring.cronSchedule` (default `*/5 * * * *`).
+
 #### scheduleTrigger
 
 - **Source:** [pipeline/creation/scheduleTrigger.ts](../pipeline/creation/scheduleTrigger.ts)
 - **Flow:** Fetches items from configured feeds (coinGecko, newsAPI, githubTrends, polymarket, custom) → generateMarketInput → createMarkets.
 - **Output:** writeReport to marketFactoryAddress.
 - **Skip:** No-op if `feeds` empty or `creatorAddress` missing.
+- **Note:** When `orchestration.enabled` is true, `onDiscoveryCron` is primary; scheduleTrigger may be deprecated or used as fallback.
 
 #### draftProposer
 
@@ -525,13 +659,14 @@ Per-handler documentation for all CRE workflow handlers registered in [main.ts](
 #### onScheduleResolver
 
 - **Source:** [pipeline/resolution/scheduleResolver.ts](../pipeline/resolution/scheduleResolver.ts)
-- **Flow:** For each marketId in resolution.marketIds: read market from MarketRegistry → if resolveTime <= now and not settled → askGPTForOutcome → encodeOutcomeReport → writeReport to CREReceiver.
+- **Flow:** For each marketId: read market from MarketRegistry → if resolveTime <= now and not settled → `resolveFromPlan` (load ResolutionPlan, call `resolutionExecutor`) → if REVIEW_REQUIRED: store artifact, skip writeReport; else encodeOutcomeReport → writeReport to CREReceiver.
 - **Requires:** creReceiverAddress, marketRegistryAddress, resolution.marketIds.
+- **Resolution path:** When stored ResolutionPlan exists, uses resolutionExecutor (deterministic, multi_source_deterministic, ai_assisted, human_review); otherwise falls back to askGPTForOutcome.
 
 #### onLogTrigger
 
 - **Source:** [pipeline/resolution/logTrigger.ts](../pipeline/resolution/logTrigger.ts)
-- **Flow:** On SettlementRequested(marketId, question): read market from PoolMarketLegacy → askGPTForOutcome → encodeOutcomeReport → writeReport to CREReceiver.
+- **Flow:** On SettlementRequested(marketId, question): read market from PoolMarketLegacy → `resolveFromPlan` (load ResolutionPlan, call `resolutionExecutor`) → if REVIEW_REQUIRED: store artifact, skip writeReport; else encodeOutcomeReport → writeReport to CREReceiver.
 - **Requires:** creReceiverAddress, marketAddress.
 - **Event:** `SettlementRequested(uint256 indexed marketId, string question)`.
 
@@ -658,9 +793,33 @@ encodeOutcomeReport(market, marketId, outcomeIndex, confidence)
 | `useMockAi` | Skip API, use mock response |
 | `mockAiResponse` | JSON string for mock |
 
+### Resolution Executor
+
+When a stored `ResolutionPlan` exists, [resolveFromPlan.ts](../pipeline/resolution/resolveFromPlan.ts) delegates to [resolutionExecutor.ts](../pipeline/resolution/resolutionExecutor.ts), which routes by `resolutionPlan.resolutionMode`:
+
+| Mode | Behavior |
+|------|----------|
+| `deterministic` | Fetch from `official_api` or `onchain_event`; evaluate `resolutionPredicate`; return outcome |
+| `multi_source_deterministic` | Fetch all primary sources; majority wins; fallback sources if needed |
+| `ai_assisted` | Delegate to [llmConsensus.ts](../pipeline/resolution/llmConsensus.ts) |
+| `human_review` | Return `REVIEW_REQUIRED`; halt, no writeReport |
+
+### Multi-LLM Consensus
+
+For `ai_assisted` mode, [llmConsensus.ts](../pipeline/resolution/llmConsensus.ts) runs multiple LLM providers in parallel. Consensus rules: unanimous accept; 2/3 majority + min confidence accept; else `REVIEW_REQUIRED`. Config: `resolution.multiLlmEnabled`, `resolution.llmProviders`, `resolution.minConfidence`, `resolution.consensusQuorum`.
+
+### Settlement Artifact
+
+Before `writeReport`, the executor produces a `SettlementArtifact` (marketId, question, outcomeIndex, confidence, sourcesUsed, resolutionMode, reasoning). Validation: outcomeIndex in range, confidence >= minThreshold. See [domain/settlementArtifact.ts](../domain/settlementArtifact.ts).
+
+### REVIEW_REQUIRED Path
+
+When `resolutionMode` is `human_review` or consensus fails, the artifact is stored with `reviewRequired: true` and no `writeReport` is sent. The market remains unsettled for manual review.
+
 ### References
 
 - [packages/contracts/docs/abi/docs/cre/CREWorkflowOutcome.md](../../packages/contracts/docs/abi/docs/cre/CREWorkflowOutcome.md)
+- [AIDrivenLayerEvent.md](AIDrivenLayerEvent.md) — AI event-driven settlement spec
 
 ---
 
@@ -1018,9 +1177,14 @@ Market creation paths: feed-driven (scheduleTrigger), publish-from-draft (HTTP),
 
 | Path | Trigger | Receiver | Flow |
 |------|---------|----------|------|
+| Orchestration (draftingPipeline) | Cron | DraftRepository / MarketFactory | discoveryCron → analyzeCandidate → writeDraftRecord (ALLOW) or createMarkets |
 | Feed-driven | Cron | MarketFactory | Feeds → scheduleTrigger → marketCreator → writeReport |
-| Publish-from-draft | HTTP | CREPublishReceiver | HTTP payload → publishFromDraft → writeReport(0x04) |
+| Publish-from-draft | HTTP | CREPublishReceiver | loadDraft → revalidateForPublish → publishFromDraft → writeReport(0x04) |
 | Draft proposer | Cron | RPC (direct) | Polymarket → proposeDraft → MarketDraftBoard.proposeDraft |
+
+### 0. Orchestration Path (draftingPipeline)
+
+When `orchestration.enabled` and `orchestration.draftingPipeline` are true, ALLOW items produce `DraftRecord` with status `PENDING_CLAIM` via [draftWriter.ts](../pipeline/creation/draftWriter.ts); no direct market creation. Discovery cron and HTTP proposal share this path. State machine: DISCOVERED → PENDING_CLAIM → CLAIMED → PUBLISHED. See [Market Drafting Pipeline](#market-drafting-pipeline) and [MarketDraftingPipelineLayer.md](MarketDraftingPipelineLayer.md).
 
 ### 1. Feed-Driven (scheduleTrigger)
 
@@ -1090,8 +1254,13 @@ When HTTP payload has `question` (and not the publish-from-draft shape), the wor
 #### Flow
 
 1. HTTP trigger receives payload with `draftId`, `creator`, `params`, `claimerSig`.
-2. publishFromDraft encodes `0x04 || abi.encode(draftId, creator, params, claimerSig)`.
-3. writeReport to **CREPublishReceiver** (not CREReceiver).
+2. Load draft from DraftRepository; call [revalidateForPublish](../pipeline/creation/publishRevalidation.ts) (draft exists, not expired, status PENDING_CLAIM/CLAIMED, params match, unresolved check).
+3. On success: publishFromDraft encodes `0x04 || abi.encode(draftId, creator, params, claimerSig)` → writeReport to **CREPublishReceiver** → markDraftPublished.
+4. On revalidation failure: return error, no publish.
+
+#### Publish Revalidation
+
+Before publish, [publishRevalidation.ts](../pipeline/creation/publishRevalidation.ts) verifies: draft exists and not expired; status is `PENDING_CLAIM` or `CLAIMED`; claimed params match stored draft (question, outcomes, resolveTime); optional unresolved check; no duplicate active market. EIP-712 signature validation is delegated to contracts.
 
 #### Prerequisites
 
@@ -1191,6 +1360,36 @@ If `sessionId` is omitted, the relayer generates one deterministically. When wor
 ### References
 
 - [packages/contracts/docs/abi/docs/cre/CREWorkflowPublish.md](../../packages/contracts/docs/abi/docs/cre/CREWorkflowPublish.md)
+
+---
+
+## Forecasting Intelligence Engine Layers
+
+When `orchestration.enabled` is true, the workflow operates as a Forecasting Intelligence Engine. Each layer has a dedicated spec document. Brief summaries below.
+
+### Orchestration Layer
+
+Multi-source discovery, policy-first creation, resolution-first drafting. Flow: Trigger → Source Fetch → Normalize → Dedupe → Classify → Policy → Draft/Onchain. Key files: [discoveryCron.ts](../pipeline/orchestration/discoveryCron.ts), [analyzeCandidate.ts](../pipeline/orchestration/analyzeCandidate.ts), [sources/registry.ts](../sources/registry.ts). See [CREOrchestrationLayer.md](CREOrchestrationLayer.md).
+
+### Market Drafting Pipeline
+
+Two-phase publication: Draft Generation (PENDING_CLAIM) → User Claim & Publish. Key components: [draftWriter.ts](../pipeline/creation/draftWriter.ts), DraftRepository, [publishRevalidation.ts](../pipeline/creation/publishRevalidation.ts). State machine: DISCOVERED → PENDING_CLAIM → CLAIMED → PUBLISHED. See [MarketDraftingPipelineLayer.md](MarketDraftingPipelineLayer.md).
+
+### AI Event-Driven Resolution
+
+Resolution executor routes by `resolutionPlan.resolutionMode`; settlement artifact and audit. See [AIDrivenLayerEvent.md](AIDrivenLayerEvent.md).
+
+### Risk Monitoring & Compliance
+
+`onRiskCron` handler: collect metrics, compute signals, apply enforcement (NoopEnforcementApplier logs only; on-chain PAUSE/DELIST planned). See [RiskMonitoringCOmplience.md](RiskMonitoringCOmplience.md).
+
+### Privacy Extensions
+
+`PrivacyProfile`: PUBLIC | PROTECTED_SOURCE | PRIVATE_INPUT | COMPLIANCE_GATED. `privacyRouter` routes by profile; `eligibilityCheck` for COMPLIANCE_GATED publish; `controlledRelease`, `confidentialFetch`, `privateSettlement` (mock providers). See [RiskPrivacyExtension.md](RiskPrivacyExtension.md).
+
+### ML Models Stack
+
+L0–L6: Source Representation → Understanding → Risk → Oracleability → Draft Synthesis → Explainability → Settlement Inference. Provider interfaces: LlmProvider, EmbeddingProvider, VerifierProvider. Config: `analysis.useLlm`, `analysis.useExplainability`. See [MLModels.md](MLModels.md).
 
 ---
 

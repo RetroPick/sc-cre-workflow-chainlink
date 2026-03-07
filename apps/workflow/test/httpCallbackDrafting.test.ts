@@ -4,16 +4,16 @@
  * and create-market validation per 04_MarketDraftingPipeline.md §6.
  */
 import { describe, test, expect, beforeEach } from "bun:test";
-import { onHttpTrigger } from "../httpCallback";
-import { getDefaultDraftRepository, createInMemoryDraftRepository } from "../pipeline/persistence/draftRepository";
-import { writeDraftRecord } from "../pipeline/creation/draftWriter";
-import type { SourceObservation } from "../domain/candidate";
-import type { UnderstandingOutput } from "../domain/understanding";
-import type { RiskScores } from "../domain/risk";
-import type { EvidenceBundle } from "../domain/evidence";
-import type { ResolutionPlan } from "../domain/resolutionPlan";
-import type { PolicyDecision } from "../domain/policy";
-import type { DraftArtifact } from "../domain/draft";
+import { onHttpTrigger } from "../src/httpCallback";
+import { getDefaultDraftRepository, createInMemoryDraftRepository } from "../src/pipeline/persistence/draftRepository";
+import { writeDraftRecord } from "../src/pipeline/creation/draftWriter";
+import type { SourceObservation } from "../src/domain/candidate";
+import type { UnderstandingOutput } from "../src/domain/understanding";
+import type { RiskScores } from "../src/domain/risk";
+import type { EvidenceBundle } from "../src/domain/evidence";
+import type { ResolutionPlan } from "../src/domain/resolutionPlan";
+import type { PolicyDecision } from "../src/domain/policy";
+import type { DraftArtifact } from "../src/domain/draft";
 
 function makeObservation(resolveTime: number): SourceObservation {
   return {

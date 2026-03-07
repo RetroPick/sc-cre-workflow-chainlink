@@ -1,7 +1,7 @@
 import type { Runtime } from "@chainlink/cre-sdk";
 import { cre, bytesToHex, hexToBase64, TxStatus, getNetwork } from "@chainlink/cre-sdk";
-import type { WorkflowConfig } from "../types/config";
-import { buildFinalStateRequest } from "../builders/buildFinalStateRequest";
+import type { WorkflowConfig } from "../../types/config";
+import { buildFinalStateRequest } from "../../builders/buildFinalStateRequest";
 
 export function onSessionSnapshot(runtime: Runtime<WorkflowConfig>): string {
   const sessions = runtime.config.yellowSessions || [];

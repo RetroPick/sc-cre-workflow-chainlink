@@ -25,3 +25,11 @@ production-settings:
   rpcs:
     - chain-name: ethereum-testnet-sepolia
       url: https://ethereum-sepolia-rpc.publicnode.com
+
+# ==========================================================================
+# Demo target — same RPCs as staging (required for cre workflow simulate -T demo-settings)
+# ==========================================================================
+demo-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://ethereum-sepolia-rpc.publicnode.com

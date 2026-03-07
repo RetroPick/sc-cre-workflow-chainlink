@@ -5,9 +5,12 @@
   "private": true,
   "scripts": {
     "postinstall": "bunx cre-setup",
-    "cre-compile": "bun build --outdir dist --target bun main.ts tmp.wasm",
+    "cre-compile": "bun build src/main.ts --outfile=dist/main.js --target=bun && (cp tmp.wasm src/tmp.wasm 2>/dev/null || true) #",
     "test": "bun test",
-    "test:e2e": "bun test test/e2e"
+    "test:e2e": "bun test test/e2e",
+    "demo": "CRE_CONFIG_PATH=config.demo.json bun run demo/main-demo.ts",
+    "demo:simulate": "cre workflow simulate . -T demo-settings",
+    "cre-demo-compile": "bun build demo/main-demo.ts --outfile=dist/demo-main.js --target=bun"
   },
   "license": "UNLICENSED",
   "dependencies": {

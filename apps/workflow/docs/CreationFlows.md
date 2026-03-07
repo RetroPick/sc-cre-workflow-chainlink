@@ -1,14 +1,35 @@
 # Creation Flows
 
-Market creation paths: feed-driven (scheduleTrigger), publish-from-draft (HTTP), and draft proposer (Polymarket → MarketDraftBoard).
+Market creation paths: orchestration (discoveryCron), feed-driven (scheduleTrigger), publish-from-draft (HTTP), drafting pipeline, and draft proposer (Polymarket → MarketDraftBoard).
 
 ## Overview
 
 | Path | Trigger | Receiver | Flow |
 |------|---------|----------|------|
+| Orchestration (discovery) | Cron | MarketFactory / DraftRepository | sources/registry → analyzeCandidate → policy → draftWriter/createMarkets |
 | Feed-driven | Cron | MarketFactory | Feeds → scheduleTrigger → marketCreator → writeReport |
-| Publish-from-draft | HTTP | CREPublishReceiver | HTTP payload → publishFromDraft → writeReport(0x04) |
+| Publish-from-draft | HTTP | CREPublishReceiver | HTTP payload → revalidateForPublish → publishFromDraft → writeReport(0x04) |
 | Draft proposer | Cron | RPC (direct) | Polymarket → proposeDraft → MarketDraftBoard.proposeDraft |
+
+## 0. Orchestration Path (discoveryCron)
+
+**Source:** [pipeline/orchestration/discoveryCron.ts](../pipeline/orchestration/discoveryCron.ts)
+
+When `orchestration.enabled` is true, the primary cron handler is **onDiscoveryCron**. It fetches from `sources/registry` (news, GitHub, CoinGecko, Polymarket, custom feeds), normalizes to `SourceObservation`, and for each observation runs `analyzeCandidate` (classify, risk, evidence, oracleability, unresolved check, resolution plan, draft synthesis). Policy evaluation returns ALLOW, REVIEW, or REJECT.
+
+- **ALLOW:** When `draftingPipeline` is true → `writeDraftRecord` → DraftRecord in draftRepository (status PENDING_CLAIM). When false → `createMarkets` → writeReport to MarketFactory.
+- **REVIEW / REJECT:** Audit only; no market or draft created.
+
+**Config:** `orchestration.enabled`, `orchestration.draftingPipeline`, `analysis.useLlm`, `analysis.useExplainability`. See [CREOrchestrationLayer.md](CREOrchestrationLayer.md).
+
+### Drafting Pipeline (Phase A & B)
+
+When `orchestration.draftingPipeline` is true:
+
+- **Phase A — Draft Generation:** Analysis → Policy → Draft Synthesis → Brochure (MarketBrief) → `writeDraftRecord` → persist as PENDING_CLAIM (no immediate market creation).
+- **Phase B — User Claim & Publish:** User signs EIP-712 → HTTP handler loads draft from draftRepository → `revalidateForPublish` (draft exists, not expired, params match, unresolved check) → `publishFromDraft` → `markDraftPublished`.
+
+See [MarketDraftingPipelineLayer.md](MarketDraftingPipelineLayer.md).
 
 ## 1. Feed-Driven (scheduleTrigger)
 

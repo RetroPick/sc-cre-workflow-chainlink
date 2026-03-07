@@ -64,7 +64,9 @@ import type { WorkflowConfig } from "./types/config";
   // ============================================================================
   
   const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
+  const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
   const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
+  const DEFAULT_GEMINI_MODEL = "gemini-1.5-flash";
   const RESPONSE_CACHE_AGE = "60s";
   const DEFAULT_TEMPERATURE = 0.0;
   const MAX_CONFIDENCE = 10000;
@@ -115,17 +117,40 @@ import type { WorkflowConfig } from "./types/config";
   // ============================================================================
   // Service Functions
   // ============================================================================
-  
-  function resolveApiKey(runtime: Runtime<Config>): string {
-    try {
-      const secret = runtime.getSecret({ id: "DEEPSEEK_API_KEY" }).result();
-      if (secret?.value) return secret.value;
-    } catch {}
 
-    if (runtime.config.deepseekApiKey && runtime.config.deepseekApiKey.trim()) {
-      return runtime.config.deepseekApiKey.trim();
+  type LlmConfig = { provider: "deepseek" | "gemini"; apiKey: string; model: string };
+
+  function resolveLlmConfig(runtime: Runtime<Config>): LlmConfig {
+    const provider = runtime.config.llmProvider ?? "deepseek";
+
+    if (provider === "gemini") {
+      try {
+        const secret = runtime.getSecret({ id: "GEMINI_API_KEY" }).result();
+        if (secret?.value) {
+          const model = runtime.config.geminiModel?.trim() || DEFAULT_GEMINI_MODEL;
+          return { provider: "gemini", apiKey: secret.value, model };
+        }
+      } catch {}
+      if (runtime.config.geminiApiKey?.trim()) {
+        const model = runtime.config.geminiModel?.trim() || DEFAULT_GEMINI_MODEL;
+        return { provider: "gemini", apiKey: runtime.config.geminiApiKey.trim(), model };
+      }
+      throw new Error(
+        "Gemini API key not found. Set GEMINI_API_KEY as a CRE secret, or set geminiApiKey in config."
+      );
     }
 
+    try {
+      const secret = runtime.getSecret({ id: "DEEPSEEK_API_KEY" }).result();
+      if (secret?.value) {
+        const model = runtime.config.gptModel?.trim() || DEFAULT_DEEPSEEK_MODEL;
+        return { provider: "deepseek", apiKey: secret.value, model };
+      }
+    } catch {}
+    if (runtime.config.deepseekApiKey?.trim()) {
+      const model = runtime.config.gptModel?.trim() || DEFAULT_DEEPSEEK_MODEL;
+      return { provider: "deepseek", apiKey: runtime.config.deepseekApiKey.trim(), model };
+    }
     throw new Error(
       "DeepSeek API key not found. Set DEEPSEEK_API_KEY as a CRE secret, or set deepseekApiKey in config."
     );
@@ -148,13 +173,11 @@ import type { WorkflowConfig } from "./types/config";
         };
       }
 
-      this.runtime.log("[DeepSeek] Querying AI for market outcome...");
+      const llm = resolveLlmConfig(this.runtime);
+      this.runtime.log(`[${llm.provider}] Querying AI for market outcome...`);
   
-      const apiKey = { value: resolveApiKey(this.runtime) };
       const httpClient = new cre.capabilities.HTTPClient();
-  
-      const model = this.runtime.config.gptModel?.trim() || DEFAULT_DEEPSEEK_MODEL;
-      const requestBuilder = this.buildGPTRequest(question, apiKey.value, model);
+      const requestBuilder = this.buildGPTRequest(question, llm);
       const aggregatedResponse = consensusIdenticalAggregation<GPTResponse>();
   
       const result = httpClient
@@ -251,10 +274,9 @@ import type { WorkflowConfig } from "./types/config";
         this.runtime.log("[DeepSeek] Using mock AI response for typed market.");
         return { statusCode: 200, gptResponse: mockResponse, responseId: "mock", rawJsonString: mockResponse };
       }
-      this.runtime.log("[DeepSeek] Querying AI for typed market outcome...");
-      const apiKey = resolveApiKey(this.runtime);
-      const model = this.runtime.config.gptModel?.trim() || DEFAULT_DEEPSEEK_MODEL;
-      const requestBuilder = this.buildGPTRequestTyped(systemPrompt, userContent, apiKey, model, temperature);
+      const llm = resolveLlmConfig(this.runtime);
+      this.runtime.log(`[${llm.provider}] Querying AI for typed market outcome...`);
+      const requestBuilder = this.buildGPTRequestTyped(systemPrompt, userContent, llm, temperature);
       const aggregatedResponse = consensusIdenticalAggregation<GPTResponse>();
       const httpClient = new cre.capabilities.HTTPClient();
       const result = httpClient
@@ -268,27 +290,28 @@ import type { WorkflowConfig } from "./types/config";
     private buildGPTRequestTyped(
       systemPrompt: string,
       userContent: string,
-      apiKey: string,
-      model: string,
+      llm: LlmConfig,
       temperature: number = DEFAULT_TEMPERATURE
     ) {
       return (sendRequester: HTTPSendRequester, config: Config): GPTResponse => {
-        const request = {
-          url: DEEPSEEK_API_URL,
-          method: "POST" as const,
-          body: encodeJsonBodyBase64({
-            model,
-            messages: [
-              { role: "system" as const, content: systemPrompt },
-              { role: "user" as const, content: userContent },
-            ],
-            temperature,
-          }),
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          cacheSettings: { store: true, maxAge: RESPONSE_CACHE_AGE },
-        };
+        const request = llm.provider === "gemini"
+          ? this.createGeminiRequestTyped(systemPrompt, userContent, llm.apiKey, llm.model, temperature)
+          : {
+              url: DEEPSEEK_API_URL,
+              method: "POST" as const,
+              body: encodeJsonBodyBase64({
+                model: llm.model,
+                messages: [
+                  { role: "system" as const, content: systemPrompt },
+                  { role: "user" as const, content: userContent },
+                ],
+                temperature,
+              }),
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${llm.apiKey}` },
+              cacheSettings: { store: true, maxAge: RESPONSE_CACHE_AGE },
+            };
         const response = sendRequester.sendRequest(request).result();
-        return this.handleDeepSeekResponse(response);
+        return this.handleLlmResponse(response, llm.provider);
       };
     }
 
@@ -305,12 +328,51 @@ import type { WorkflowConfig } from "./types/config";
       return parsed;
     }
   
-    private buildGPTRequest(question: string, apiKey: string, model: string) {
+    private buildGPTRequest(question: string, llm: LlmConfig) {
       return (sendRequester: HTTPSendRequester, config: Config): GPTResponse => {
-        const request = this.createDeepSeekRequest(question, apiKey, model);
+        const request = llm.provider === "gemini"
+          ? this.createGeminiRequest(question, llm.apiKey, llm.model)
+          : this.createDeepSeekRequest(question, llm.apiKey, llm.model);
         const response = sendRequester.sendRequest(request).result();
-        
-        return this.handleDeepSeekResponse(response);
+        return this.handleLlmResponse(response, llm.provider);
+      };
+    }
+
+    private createGeminiRequest(question: string, apiKey: string, model: string) {
+      const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
+      const payload = {
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: [{ role: "user", parts: [{ text: USER_PROMPT_PREFIX + question }] }],
+        generationConfig: { temperature: DEFAULT_TEMPERATURE },
+      };
+      return {
+        url,
+        method: "POST" as const,
+        body: encodeJsonBodyBase64(payload),
+        headers: { "Content-Type": "application/json" },
+        cacheSettings: { store: true, maxAge: RESPONSE_CACHE_AGE },
+      };
+    }
+
+    private createGeminiRequestTyped(
+      systemPrompt: string,
+      userContent: string,
+      apiKey: string,
+      model: string,
+      temperature: number
+    ) {
+      const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
+      const payload = {
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userContent }] }],
+        generationConfig: { temperature },
+      };
+      return {
+        url,
+        method: "POST" as const,
+        body: encodeJsonBodyBase64(payload),
+        headers: { "Content-Type": "application/json" },
+        cacheSettings: { store: true, maxAge: RESPONSE_CACHE_AGE },
       };
     }
 
@@ -339,39 +401,44 @@ import type { WorkflowConfig } from "./types/config";
       };
     }
 
-    private handleDeepSeekResponse(response: any): GPTResponse {
+    private handleLlmResponse(response: any, provider: "deepseek" | "gemini"): GPTResponse {
       const bodyText = new TextDecoder().decode(response.body);
-      
+
       if (!ok(response)) {
-        throw new Error(`DeepSeek API error: ${response.statusCode} - ${bodyText}`);
+        throw new Error(`${provider} API error: ${response.statusCode} - ${bodyText}`);
       }
-  
-      const parsedResponse = this.parseOpenAIResponse(bodyText);
-      const gptResponse = this.extractGPTContent(parsedResponse);
-      
+
+      const parsedResponse = this.parseLlmResponse(bodyText);
+      const gptResponse = this.extractGPTContent(parsedResponse, provider);
+
       return {
         statusCode: response.statusCode,
         gptResponse,
-        responseId: parsedResponse.id || "",
+        responseId: (parsedResponse as { id?: string }).id || "",
         rawJsonString: bodyText,
       };
     }
-  
-    private parseOpenAIResponse(bodyText: string): OpenAIResponse {
+
+    private parseLlmResponse(bodyText: string): OpenAIResponse {
       try {
         return JSON.parse(bodyText) as OpenAIResponse;
       } catch (error) {
-        throw new Error(`Failed to parse DeepSeek response: ${getErrorMessage(error)}`);
+        throw new Error(`Failed to parse LLM response: ${getErrorMessage(error)}`);
       }
     }
-  
-    private extractGPTContent(parsedResponse: OpenAIResponse): string {
+
+    private extractGPTContent(parsedResponse: OpenAIResponse, provider: "deepseek" | "gemini"): string {
+      if (provider === "gemini") {
+        const text = parsedResponse?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) {
+          throw new Error("Malformed Gemini response: missing text content");
+        }
+        return text;
+      }
       const text = parsedResponse?.choices?.[0]?.message?.content;
-      
       if (!text) {
         throw new Error("Malformed DeepSeek response: missing text content");
       }
-      
       return text;
     }
   

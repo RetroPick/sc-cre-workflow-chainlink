@@ -3,9 +3,18 @@ import type { PrivacyProfile } from "../domain/privacy";
 
 export type ResolutionMode = "log" | "schedule" | "both";
 
+/** LLM provider for AI resolution (askGPTForOutcome). Default: deepseek. */
+export type LlmProviderType = "deepseek" | "gemini";
+
 export type WorkflowConfig = {
+  /** LLM provider for resolution. Default: deepseek. Use gemini for Google Gemini API. */
+  llmProvider?: LlmProviderType;
   gptModel?: string;
   deepseekApiKey?: string;
+  /** Gemini API key; used when llmProvider is gemini. Fallback: GEMINI_API_KEY env/secret. */
+  geminiApiKey?: string;
+  /** Gemini model name (e.g. gemini-1.5-flash, gemini-1.5-pro). Default: gemini-1.5-flash. */
+  geminiModel?: string;
   relayerUrl?: string; // e.g. https://your-relayer.up.railway.app
   useMockAi?: boolean;
   mockAiResponse?: string;

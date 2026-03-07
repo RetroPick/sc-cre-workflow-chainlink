@@ -1,0 +1,24 @@
+{
+  "demoMode": true,
+  "useMocks": true,
+  "orchestration": { "enabled": true, "draftingPipeline": true },
+  "analysis": { "useLlm": false, "useExplainability": false },
+  "relayerUrl": "https://backend-relayer-production.up.railway.app",
+  "evms": [
+    {
+      "marketAddress": "0x0000000000000000000000000000000000000000",
+      "marketRegistryAddress": "0x0000000000000000000000000000000000000000",
+      "chainSelectorName": "ethereum-testnet-sepolia",
+      "gasLimit": "1000000"
+    }
+  ],
+  "resolution": { "mode": "log", "marketIds": [] },
+  "creReceiverAddress": "0x0000000000000000000000000000000000000000",
+  "creatorAddress": "0x0000000000000000000000000000000000000000",
+  "marketFactoryAddress": "",
+  "curatedPath": {
+    "enabled": true,
+    "draftBoardAddress": "",
+    "crePublishReceiverAddress": ""
+  }
+}

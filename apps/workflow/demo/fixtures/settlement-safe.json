@@ -1,0 +1,7 @@
+{
+  "marketId": "0",
+  "question": "Will ETH exceed $6000 by December 31, 2026?",
+  "outcomeIndex": 0,
+  "confidenceBps": 9200,
+  "reasoning": "Fixture-based deterministic resolution"
+}

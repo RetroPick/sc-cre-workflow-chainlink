@@ -7,7 +7,7 @@ import { onLogTrigger } from "./pipeline/resolution/logTrigger";
 import { onScheduleResolver } from "./pipeline/resolution/scheduleResolver";
 import { onDiscoveryCron } from "./pipeline/orchestration/discoveryCron";
 import { onDraftProposer } from "./pipeline/creation/draftProposer";
-import { onSessionSnapshot } from "./jobs/sessionSnapshot";
+import { onSessionSnapshot } from "./pipeline/orchestration/sessionSnapshot";
 import { onCheckpointSubmit } from "./pipeline/checkpoint/checkpointSubmit";
 import { onCheckpointFinalize } from "./pipeline/checkpoint/checkpointFinalize";
 import { onCheckpointCancel } from "./pipeline/checkpoint/checkpointCancel";

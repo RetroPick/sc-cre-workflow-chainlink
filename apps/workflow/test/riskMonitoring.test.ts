@@ -9,13 +9,13 @@
  * Case E: blacklist hit → DELIST_MARKET
  */
 import { describe, test, expect } from "bun:test";
-import { runRiskCron } from "../pipeline/monitoring/riskCron";
+import { runRiskCron } from "../src/pipeline/monitoring/riskCron";
 import {
   MockMarketMetricsProvider,
   createMockSnapshotPreset,
-} from "../pipeline/monitoring/mockProvider";
-import { InMemoryComplianceReporter } from "../pipeline/monitoring/reporting";
-import { NoopEnforcementApplier } from "../pipeline/monitoring/applyEnforcement";
+} from "../src/pipeline/monitoring/mockProvider";
+import { InMemoryComplianceReporter } from "../src/pipeline/monitoring/reporting";
+import { NoopEnforcementApplier } from "../src/pipeline/monitoring/applyEnforcement";
 
 describe("Risk Monitoring — policy cases", () => {
   test("Case A: healthy market → NO_ACTION", async () => {

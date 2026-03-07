@@ -6,20 +6,22 @@ Per-handler documentation for all CRE workflow handlers registered in [main.ts](
 
 | Handler | Trigger | Config | Purpose |
 |---------|---------|--------|---------|
-| scheduleTrigger | cron | feeds, creatorAddress | Feed-driven market creation |
+| onDiscoveryCron | cron | orchestration, feeds, creatorAddress | Multi-source discovery → analyzeCandidate → policy → draftWriter/createMarkets |
 | draftProposer | cron | curatedPath, polymarket, rpcUrl | Polymarket → MarketDraftBoard.proposeDraft |
 | sessionSnapshot | cron | yellowSessions, creReceiverAddress | Legacy SessionFinalizer path |
 | onCheckpointSubmit | cron | relayerUrl, creReceiverAddress | V3 checkpoint delivery via CREReceiver |
 | onCheckpointFinalize | cronFinalize | relayerUrl | Relayer submits finalizeCheckpoint after 30 min |
 | onCheckpointCancel | cronCancel | relayerUrl | Relayer submits cancelPendingCheckpoint after 6 hr |
 | onScheduleResolver | cron | resolution.marketIds, marketRegistryAddress | V3 MarketRegistry schedule-based resolution |
-| onLogTrigger | Log | marketAddress | Legacy: SettlementRequested → CREReceiver |
+| onLogTrigger | Log | marketAddress | SettlementRequested → resolveFromPlan → CREReceiver |
 | onHttpTrigger | HTTP | crePublishReceiverAddress | Publish-from-draft when payload has draftId, creator, params, claimerSig |
+| onRiskCron | cronRisk | monitoring.enabled, monitoring.cronSchedule | Live-market risk monitoring, enforcement |
 
 ## Conditional Registration
 
 - **onLogTrigger:** Registered when `resolution.mode` is `"log"` or `"both"` AND `evms[0].marketAddress` is set and non-zero.
 - **onScheduleResolver:** Registered when `resolution.mode` is `"schedule"` or `"both"` AND `evms[0].marketRegistryAddress` is set and non-zero.
+- **onRiskCron:** Registered when `monitoring.enabled` is true.
 
 ## Trigger Schedules
 
@@ -28,15 +30,16 @@ Per-handler documentation for all CRE workflow handlers registered in [main.ts](
 | cron | cronSchedule | `*/15 * * * *` (every 15 min) |
 | cronFinalize | cronScheduleFinalize | Same as cronSchedule |
 | cronCancel | cronScheduleCancel | `0 0 */8 * * *` (every 8 hr) |
+| cronRisk | monitoring.cronSchedule | `*/5 * * * *` (every 5 min) |
 
 ## Handler Details
 
-### scheduleTrigger
+### onDiscoveryCron
 
-- **Source:** [pipeline/creation/scheduleTrigger.ts](../pipeline/creation/scheduleTrigger.ts)
-- **Flow:** Fetches items from configured feeds (coinGecko, newsAPI, githubTrends, polymarket, custom) → generateMarketInput → createMarkets.
-- **Output:** writeReport to marketFactoryAddress.
-- **Skip:** No-op if `feeds` empty or `creatorAddress` missing.
+- **Source:** [pipeline/orchestration/discoveryCron.ts](../pipeline/orchestration/discoveryCron.ts)
+- **Flow:** When `orchestration.enabled`: fetches from `sources/registry` → normalizes to `SourceObservation` → for each: `analyzeCandidate` (classify, risk, evidence, oracleability, unresolved check, resolution plan, draft synthesis) → policy evaluation → ALLOW: `createMarkets` or (when `draftingPipeline`) `writeDraftRecord`; REVIEW/REJECT: audit only. When orchestration disabled: delegates to legacy scheduleTrigger path (feeds → generateMarketInput → createMarkets).
+- **Output:** writeReport to marketFactoryAddress, or DraftRecord in draftRepository when draftingPipeline.
+- **Skip:** No-op if no sources/feeds or `creatorAddress` missing.
 
 ### draftProposer
 
@@ -75,14 +78,14 @@ Per-handler documentation for all CRE workflow handlers registered in [main.ts](
 ### onScheduleResolver
 
 - **Source:** [pipeline/resolution/scheduleResolver.ts](../pipeline/resolution/scheduleResolver.ts)
-- **Flow:** For each marketId in resolution.marketIds: read market from MarketRegistry → if resolveTime <= now and not settled → askGPTForOutcome → encodeOutcomeReport → writeReport to CREReceiver.
+- **Flow:** For each marketId: read market from MarketRegistry → if resolveTime <= now and not settled → **resolveFromPlan** (load ResolutionPlan from resolutionPlanStore, call resolutionExecutor). When plan exists: deterministic / multi_source_deterministic / ai_assisted (llmConsensus) / human_review. When plan absent: fallback to askGPTForOutcome. Build SettlementArtifact, log via auditLogger, encodeOutcomeReport → writeReport to CREReceiver.
 - **Requires:** creReceiverAddress, marketRegistryAddress, resolution.marketIds.
 - **See:** [ResolutionFlow](ResolutionFlow.md).
 
 ### onLogTrigger
 
 - **Source:** [pipeline/resolution/logTrigger.ts](../pipeline/resolution/logTrigger.ts)
-- **Flow:** On SettlementRequested(marketId, question): read market from PoolMarketLegacy → askGPTForOutcome → encodeOutcomeReport → writeReport to CREReceiver.
+- **Flow:** On SettlementRequested(marketId, question): read market from PoolMarketLegacy → **resolveFromPlan** (load ResolutionPlan, call resolutionExecutor). When plan exists: route by resolutionMode. When plan absent: fallback to askGPTForOutcome. Build SettlementArtifact, log via auditLogger, encodeOutcomeReport → writeReport to CREReceiver.
 - **Requires:** creReceiverAddress, marketAddress.
 - **Event:** `SettlementRequested(uint256 indexed marketId, string question)`.
 - **See:** [ResolutionFlow](ResolutionFlow.md).
@@ -90,6 +93,13 @@ Per-handler documentation for all CRE workflow handlers registered in [main.ts](
 ### onHttpTrigger
 
 - **Source:** [httpCallback.ts](../httpCallback.ts), [pipeline/creation/publishFromDraft.ts](../pipeline/creation/publishFromDraft.ts)
-- **Flow:** If payload has draftId, creator, params, claimerSig → publishFromDraft → writeReport(0x04) to CREPublishReceiver. Else routes to create market (currently returns Success).
+- **Flow:** If payload has draftId, creator, params, claimerSig → load draft from draftRepository → **revalidateForPublish** → publishFromDraft → markDraftPublished → writeReport(0x04) to CREPublishReceiver. Else (proposal path): when `orchestration.enabled` → normalize to observation → analyzeCandidate → return ProposalPreviewResponse (policy, understanding, resolutionPlan, draft). When `draftingPipeline`: writeDraftRecord instead of createMarkets. Else routes to create market.
 - **Requires:** crePublishReceiverAddress (or curatedPath.crePublishReceiverAddress).
 - **Target:** CREPublishReceiver (not CREReceiver).
+
+### onRiskCron
+
+- **Source:** [pipeline/monitoring/riskCronHandler.ts](../pipeline/monitoring/riskCronHandler.ts)
+- **Flow:** For each marketId (from monitoring.marketIds or resolution.marketIds): collect metrics, compute signals, apply enforcement. Log compliance audit records.
+- **Requires:** monitoring.enabled, marketRegistryAddress (or relayer for market IDs).
+- **See:** [RiskMonitoringCOmplience.md](RiskMonitoringCOmplience.md).

@@ -6,13 +6,13 @@ import {
   requiresConfidentialFetch,
   requiresEligibilityCheck,
   requiresPrivateSettlement,
-} from "../pipeline/privacy/privacyRouter";
-import { applyControlledRelease } from "../pipeline/privacy/controlledRelease";
-import { MockConfidentialEvidenceProvider } from "../pipeline/privacy/confidentialFetch";
-import { MockEligibilityProvider } from "../pipeline/privacy/eligibilityCheck";
-import { MockConfidentialSettlementProvider } from "../pipeline/privacy/privateSettlement";
-import { makePrivacyAuditRecord } from "../pipeline/privacy/privacyAudit";
-import type { PrivacyProfile } from "../domain/privacy";
+} from "../src/pipeline/privacy/privacyRouter";
+import { applyControlledRelease } from "../src/pipeline/privacy/controlledRelease";
+import { MockConfidentialEvidenceProvider } from "../src/pipeline/privacy/confidentialFetch";
+import { MockEligibilityProvider } from "../src/pipeline/privacy/eligibilityCheck";
+import { MockConfidentialSettlementProvider } from "../src/pipeline/privacy/privateSettlement";
+import { makePrivacyAuditRecord } from "../src/pipeline/privacy/privacyAudit";
+import type { PrivacyProfile } from "../src/domain/privacy";
 
 describe("privacyRouter", () => {
   it("requiresConfidentialFetch returns true for PROTECTED_SOURCE and PRIVATE_INPUT", () => {

@@ -1,10 +1,10 @@
-import { generateMarketInput } from "../builders/generateMarket";
-import { validateFeedItem, validateMarketInput } from "../builders/schemaValidator";
-import type { FeedItem } from "../types/feed";
-import { encodeOutcomeReport, encodePublishReport, type DraftPublishParams } from "../contracts/reportFormats";
-import { computeParamsHash } from "../contracts/publishFromDraft";
-import { validateWorkflowConfig, shouldRegisterLogTrigger, shouldRegisterScheduleResolver } from "../config/schema";
-import type { WorkflowConfig } from "../types/config";
+import { generateMarketInput } from "../src/builders/generateMarket";
+import { validateFeedItem, validateMarketInput } from "../src/builders/schemaValidator";
+import type { FeedItem } from "../src/types/feed";
+import { encodeOutcomeReport, encodePublishReport, type DraftPublishParams } from "../src/contracts/reportFormats";
+import { computeParamsHash } from "../src/contracts/publishFromDraft";
+import { validateWorkflowConfig, shouldRegisterLogTrigger, shouldRegisterScheduleResolver } from "../src/config/schema";
+import type { WorkflowConfig } from "../src/types/config";
 
 function assert(condition: boolean, message: string) {
   if (!condition) {

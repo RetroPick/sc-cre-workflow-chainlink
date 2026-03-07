@@ -3,17 +3,9 @@
  * Per 05_AIEventDrivenLayer.md.
  */
 import { describe, test, expect } from "bun:test";
-import { executeResolution } from "../pipeline/resolution/resolutionExecutor";
-import type { ResolutionPlan } from "../domain/resolutionPlan";
-import type { LlmProvider } from "../models/interfaces";
-import type { LlmProvider } from "../models/interfaces";
-import type { LlmProvider } from "../models/interfaces";
-import type { LlmProvider } from "../models/interfaces";
-import type { LlmProvider } from "../models/interfaces";
-import type { LlmProvider } from "../models/interfaces";
-import type { LlmProvider } from "../models/interfaces";
-import type { LlmProvider } from "../models/interfaces";
-import type { LlmProvider } from "../models/interfaces";
+import { executeResolution } from "../src/pipeline/resolution/resolutionExecutor";
+import type { ResolutionPlan } from "../src/domain/resolutionPlan";
+import type { LlmProvider } from "../src/models/interfaces";
 
 const mockRuntime = {
   config: {},

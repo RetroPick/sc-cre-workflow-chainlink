@@ -3,7 +3,7 @@
  * Covers early-exit paths and drafting pipeline integration per plan §7 Test E.
  */
 import { describe, test, expect } from "bun:test";
-import { onDiscoveryCron } from "../pipeline/orchestration/discoveryCron";
+import { onDiscoveryCron } from "../src/pipeline/orchestration/discoveryCron";
 
 function mockRuntime(overrides: Record<string, unknown> = {}) {
   return {

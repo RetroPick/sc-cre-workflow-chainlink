@@ -3,8 +3,8 @@
  * Per 05_AIEventDrivenLayer.md — unanimous and majority consensus rules.
  */
 import { describe, test, expect } from "bun:test";
-import { runLLMConsensus } from "../pipeline/resolution/llmConsensus";
-import type { LlmProvider } from "../models/interfaces";
+import { runLLMConsensus } from "../src/pipeline/resolution/llmConsensus";
+import type { LlmProvider } from "../src/models/interfaces";
 
 const mockRuntime = {
   config: {},
@@ -122,7 +122,7 @@ describe("LLM Consensus", () => {
     expect(result).toBeNull();
   });
 
-  test("all providers ESCALATE returns ESCALATE status", async () => {
+  test("all providers ESCALATE propagates ESCALATE status", async () => {
     const provider = createMockLlmProviderEscalate();
     const result = await runLLMConsensus(mockRuntime, {
       question: "Will BTC exceed 100k?",
@@ -134,7 +134,6 @@ describe("LLM Consensus", () => {
       consensusQuorum: 2,
       minConfidence: 7000,
     });
-    expect(result).not.toBeNull();
     expect(result).toEqual({ status: "ESCALATE", reason: "" });
   });
 

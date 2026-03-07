@@ -10,7 +10,7 @@
 #   user-workflow:
 #     workflow-name: "MyExampleWorkflow"    # Required: Workflow Registry name
 #   workflow-artifacts:
-#     workflow-path: "./main.ts"            # Path to workflow entry point
+#     workflow-path: "./src/main.ts"            # Path to workflow entry point
 #     config-path: "./config.yaml"          # Path to config file
 #     secrets-path: "../secrets.yaml"       # Path to secrets file (project root by default)
 
@@ -19,7 +19,7 @@ staging-settings:
   user-workflow:
     workflow-name: "my-workflow-staging"
   workflow-artifacts:
-    workflow-path: "./main.ts"
+    workflow-path: "./src/main.ts"
     config-path: "./config.staging.json"
     secrets-path: ""
     
@@ -29,6 +29,17 @@ production-settings:
   user-workflow:
     workflow-name: "my-workflow-production"
   workflow-artifacts:
-    workflow-path: "./main.ts"
+    workflow-path: "./src/main.ts"
     config-path: "./config.production.json"
+    secrets-path: ""
+
+# ==========================================================================
+# Demo target — deterministic, no-LLM hackathon demo (uses src/ so CRE finds tmp.wasm)
+# ==========================================================================
+demo-settings:
+  user-workflow:
+    workflow-name: "retropick-demo"
+  workflow-artifacts:
+    workflow-path: "./src/demo-main.ts"
+    config-path: "./config.demo.json"
     secrets-path: ""

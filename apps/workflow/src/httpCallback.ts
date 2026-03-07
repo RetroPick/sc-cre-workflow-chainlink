@@ -19,7 +19,10 @@ import { makePrivacyAuditRecord, logPrivacyAudit } from "./pipeline/privacy/priv
 
 // Interface for the HTTP Payload - create market
 interface CreateMarketPayload {
-  question: string;
+  /** Primary field for the market question */
+  question?: string;
+  /** Alias for question (demo fixtures use "title") */
+  title?: string;
   /** Unix timestamp when market resolves. Default: now + 24h */
   resolveTime?: number;
   /** Category label. Default: "http" */
@@ -77,7 +80,7 @@ function buildFeedItemFromPayload(payload: CreateMarketPayload): FeedItem {
   const now = Math.floor(Date.now() / 1000);
   const resolveTime = payload.resolveTime ?? now + 86400;
   const category = payload.category ?? "http";
-  const question = String(payload.question).trim();
+  const question = String(payload.title ?? payload.question ?? "").trim();
   const externalId = `http:${now}:${question.substring(0, 64)}`;
   return {
     feedId: "http",
@@ -107,7 +110,7 @@ function normalizeProposalToObservation(payload: CreateMarketPayload): SourceObs
   const now = Math.floor(Date.now() / 1000);
   const resolveTime = payload.resolveTime ?? now + 86400;
   const category = payload.category ?? "http";
-  const question = String(payload.question).trim();
+  const question = String(payload.title ?? payload.question ?? "").trim();
   const externalId = `http:${now}:${question.substring(0, 64)}`;
   const feedItem = buildFeedItemFromPayload(payload);
   return {
@@ -199,11 +202,12 @@ export async function onHttpTrigger(runtime: Runtime<Config>, payload: HTTPPaylo
 
   // Route: Create market (HTTP)
   const createPayload = inputData as CreateMarketPayload;
+  const question = String(createPayload.title ?? createPayload.question ?? "").trim();
   runtime.log("[Step 1] Route: Create market");
-  runtime.log(`[Step 1] Received question: ${createPayload.question}`);
+  runtime.log(`[Step 1] Received question: ${question}`);
 
-  if (!createPayload.question || String(createPayload.question).trim().length === 0) {
-    runtime.log("[ERROR] Question is required for create market");
+  if (!question) {
+    runtime.log("[ERROR] Question or title is required for create market");
     return "Error: Question is required";
   }
 

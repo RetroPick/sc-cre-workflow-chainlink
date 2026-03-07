@@ -15,13 +15,13 @@ Full reference for `WorkflowConfig` used by the CRE workflow. Edit `config.stagi
 |-------|---------|---------|
 | `creReceiverAddress` | CREReceiver for resolution, checkpoint, session finalization | onLogTrigger, onScheduleResolver, onCheckpointSubmit, sessionSnapshot |
 | `crePublishReceiverAddress` | CREPublishReceiver for publish-from-draft | onHttpTrigger (fallback when curatedPath.crePublishReceiverAddress not set) |
-| `marketFactoryAddress` | Receiver for feed-driven market creation | scheduleTrigger, marketCreator |
+| `marketFactoryAddress` | Receiver for feed-driven market creation | discoveryCron, scheduleTrigger, marketCreator |
 
 ## Cron Schedules
 
 | Field | Default | Purpose |
 |-------|---------|---------|
-| `cronSchedule` | `"*/15 * * * *"` | Main cron: scheduleTrigger, draftProposer, sessionSnapshot, checkpointSubmit, scheduleResolver |
+| `cronSchedule` | `"*/15 * * * *"` | Main cron: discoveryCron, draftProposer, sessionSnapshot, checkpointSubmit, scheduleResolver |
 | `cronScheduleFinalize` | Same as cronSchedule | Separate cron for checkpoint finalize. **Recommended:** Run at least every 35–40 min (e.g. `0 */35 * * * *`) since challenge window is 30 min. |
 | `cronScheduleCancel` | `"0 0 */8 * * *"` | Cron for checkpoint cancel (every 8 hr). Run at least every 8 hr; CANCEL_DELAY is 6 hr. |
 
@@ -63,6 +63,45 @@ Example:
 - **schedule**: Cron polls `marketIds` (and/or relayer when `useRelayerMarkets`); resolves markets where `resolveTime <= now`. Requires `evms[0].marketRegistryAddress`.
 - **both**: Registers both log trigger and schedule resolver.
 
+### Resolution (Extended — AI Event-Driven)
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `resolution.multiLlmEnabled` | `boolean` | Enable multi-LLM consensus for ai_assisted mode |
+| `resolution.llmProviders` | `string[]` | LLM provider IDs (e.g. `["openai", "anthropic"]`) |
+| `resolution.minConfidence` | `number` | Minimum confidence (0–10000) for settlement; default 7000 (70%) |
+| `resolution.consensusQuorum` | `number` | Min agreeing LLM providers for multi-LLM; default 2 |
+
+## Orchestration
+
+| Field | Purpose |
+|-------|---------|
+| `orchestration.enabled` | Enable CRE Orchestration Layer (discoveryCron, analyzeCandidate, policy engine) |
+| `orchestration.draftingPipeline` | When true with orchestration: ALLOW creates DraftRecord (PENDING_CLAIM) instead of direct createMarkets |
+
+## Analysis
+
+| Field | Purpose |
+|-------|---------|
+| `analysis.useLlm` | Use LLM for classify, risk, draft synthesis when true; fallback to rules when false |
+| `analysis.useExplainability` | Generate MarketBrief (L5) for approved drafts when true |
+
+## Monitoring (Risk & Compliance)
+
+| Field | Purpose |
+|-------|---------|
+| `monitoring.enabled` | Enable onRiskCron for live-market risk monitoring |
+| `monitoring.cronSchedule` | Cron for risk checks (default: `"*/5 * * * *"` every 5 min) |
+| `monitoring.marketIds` | Market IDs to monitor; falls back to resolution.marketIds when unset |
+| `monitoring.useRelayerMarkets` | Fetch market IDs from relayer; falls back to resolution.useRelayerMarkets when unset |
+
+## Privacy (Privacy-Preserving Extensions)
+
+| Field | Purpose |
+|-------|---------|
+| `privacy.enabled` | Enable confidential fetch, eligibility gating, private settlement |
+| `privacy.defaultProfile` | Default PrivacyProfile: `PUBLIC` \| `PROTECTED_SOURCE` \| `PRIVATE_INPUT` \| `COMPLIANCE_GATED` |
+
 ## Curated Path (Draft Board)
 
 | Field | Purpose |
@@ -77,8 +116,11 @@ Validation: If `curatedPath.enabled` and `crePublishReceiverAddress` are set, `d
 
 | Field | Purpose |
 |-------|---------|
-| `gptModel` | Model name (default: `deepseek-chat`) |
-| `deepseekApiKey` | API key; fallback when DEEPSEEK_API_KEY secret not set |
+| `llmProvider` | `"deepseek"` (default) or `"gemini"`. Use `gemini` for Google Gemini API. |
+| `gptModel` | DeepSeek model name (default: `deepseek-chat`). Used when `llmProvider` is `deepseek`. |
+| `deepseekApiKey` | DeepSeek API key; fallback when DEEPSEEK_API_KEY secret not set |
+| `geminiApiKey` | Gemini API key; used when `llmProvider` is `gemini`. Fallback: GEMINI_API_KEY env/secret. |
+| `geminiModel` | Gemini model (e.g. `gemini-1.5-flash`, `gemini-1.5-pro`). Default: `gemini-1.5-flash`. |
 | `useMockAi` | Use mock response for demo (no API call) |
 | `mockAiResponse` | JSON string for mock (e.g. `"{\"result\":\"YES\",\"confidence\":10000}"`) |
 
@@ -162,4 +204,5 @@ Environment: `CRE_ETH_PRIVATE_KEY` (or `DRAFT_PROPOSER_PRIVATE_KEY`) for draftPr
 |----------|---------|
 | `CRE_ETH_PRIVATE_KEY` | Private key for chain writes |
 | `RPC_URL` | RPC URL (fallback when config.rpcUrl not set) |
-| `DEEPSEEK_API_KEY` | AI API key (CRE secret or env) |
+| `DEEPSEEK_API_KEY` | AI API key when `llmProvider` is `deepseek` (default) |
+| `GEMINI_API_KEY` | AI API key when `llmProvider` is `gemini` |

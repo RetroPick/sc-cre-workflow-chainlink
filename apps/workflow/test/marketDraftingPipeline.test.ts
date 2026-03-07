@@ -9,16 +9,16 @@ import {
   markDraftPublished,
   expireDraft,
   type DraftRepository,
-} from "../pipeline/creation/draftWriter";
-import { createInMemoryDraftRepository, getDefaultDraftRepository } from "../pipeline/persistence/draftRepository";
-import { revalidateForPublish } from "../pipeline/creation/publishRevalidation";
-import type { SourceObservation } from "../domain/candidate";
-import type { UnderstandingOutput } from "../domain/understanding";
-import type { RiskScores } from "../domain/risk";
-import type { EvidenceBundle } from "../domain/evidence";
-import type { ResolutionPlan } from "../domain/resolutionPlan";
-import type { PolicyDecision } from "../domain/policy";
-import type { DraftArtifact } from "../domain/draft";
+} from "../src/pipeline/creation/draftWriter";
+import { createInMemoryDraftRepository, getDefaultDraftRepository } from "../src/pipeline/persistence/draftRepository";
+import { revalidateForPublish } from "../src/pipeline/creation/publishRevalidation";
+import type { SourceObservation } from "../src/domain/candidate";
+import type { UnderstandingOutput } from "../src/domain/understanding";
+import type { RiskScores } from "../src/domain/risk";
+import type { EvidenceBundle } from "../src/domain/evidence";
+import type { ResolutionPlan } from "../src/domain/resolutionPlan";
+import type { PolicyDecision } from "../src/domain/policy";
+import type { DraftArtifact } from "../src/domain/draft";
 
 function makeObservation(): SourceObservation {
   return {

@@ -10,7 +10,7 @@
  */
 import { describe, test, expect } from "bun:test";
 import { runIntegrationTest } from "../integration.test";
-import { encodeOutcomeReport } from "../../contracts/reportFormats";
+import { encodeOutcomeReport } from "../../src/contracts/reportFormats";
 import { decodeAbiParameters, parseAbiParameters } from "viem";
 
 describe("Workflow CRE Integration", () => {

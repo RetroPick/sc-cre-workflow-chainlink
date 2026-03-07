@@ -54,9 +54,22 @@ sequenceDiagram
 
 Skip if market does not exist, already settled, or (schedule) resolveTime not yet due.
 
+### 2.5 Resolution Executor & Modes
+
+When a `ResolutionPlan` is loaded (from `resolutionPlanStore`), resolution uses `resolutionExecutor` instead of direct AI. Modes:
+
+| Mode | Behavior |
+|------|----------|
+| **deterministic** | official_api / onchain_event fetchers + predicate evaluator |
+| **multi_source_deterministic** | Fetch all primarySources, majority wins; fallback to fallbackSources if needed |
+| **ai_assisted** | Delegates to `llmConsensus` (multi-LLM parallel, consensus rules) |
+| **human_review** | Halt; log artifact with `reviewRequired: true`; no writeReport |
+
+When plan is absent, handlers fall back to `askGPTForOutcome`. After validation, a `SettlementArtifact` is built and logged via `auditLogger.logSettlementArtifact`. See [AIDrivenLayerEvent.md](AIDrivenLayerEvent.md).
+
 ### 3. AI Outcome (askGPTForOutcome)
 
-**Source:** [gpt.ts](../gpt.ts)
+**Source:** [gpt.ts](../gpt.ts). Used when no `ResolutionPlan` exists or when `resolutionExecutor` falls through to AI.
 
 | Market Type | AI Input | AI Output |
 |-------------|----------|-----------|
@@ -107,6 +120,10 @@ encodeOutcomeReport(market, marketId, outcomeIndex, confidence)
 | `evms[0].marketRegistryAddress` | MarketRegistry (schedule mode) |
 | `resolution.mode` | "log" \| "schedule" \| "both" |
 | `resolution.marketIds` | Market IDs to poll (schedule) |
+| `resolution.multiLlmEnabled` | Enable multi-LLM consensus for ai_assisted mode |
+| `resolution.llmProviders` | LLM provider IDs (e.g. ["openai", "anthropic"]) |
+| `resolution.minConfidence` | Minimum confidence (0–10000) for settlement; default 7000 (70%) |
+| `resolution.consensusQuorum` | Min agreeing LLM providers for multi-LLM; default 2 |
 | `gptModel` | DeepSeek model name |
 | `deepseekApiKey` | API key (fallback) |
 | `useMockAi` | Skip API, use mock response |

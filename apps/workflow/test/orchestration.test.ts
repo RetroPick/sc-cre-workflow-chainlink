@@ -3,17 +3,17 @@
  * Covers source registry, analysis core, policy engine, and draft synthesis.
  */
 import { describe, test, expect } from "bun:test";
-import { feedItemToSourceObservation, polymarketDraftToSourceObservation } from "../sources/registry";
-import { analyzeCandidate } from "../pipeline/orchestration/analyzeCandidate";
-import { classifyCandidate } from "../analysis/classify";
-import { evaluatePolicy } from "../policy/evaluate";
-import type { SourceObservation } from "../domain/candidate";
-import type { FeedItem } from "../types/feed";
-import type { FeedConfig } from "../types/feed";
-import type { UnderstandingOutput } from "../domain/understanding";
-import type { RiskScores } from "../domain/risk";
-import type { EvidenceBundle } from "../domain/evidence";
-import type { ResolutionPlan } from "../domain/resolutionPlan";
+import { feedItemToSourceObservation, polymarketDraftToSourceObservation } from "../src/sources/registry";
+import { analyzeCandidate } from "../src/pipeline/orchestration/analyzeCandidate";
+import { classifyCandidate } from "../src/analysis/classify";
+import { evaluatePolicy } from "../src/policy/evaluate";
+import type { SourceObservation } from "../src/domain/candidate";
+import type { FeedItem } from "../src/types/feed";
+import type { FeedConfig } from "../src/types/feed";
+import type { UnderstandingOutput } from "../src/domain/understanding";
+import type { RiskScores } from "../src/domain/risk";
+import type { EvidenceBundle } from "../src/domain/evidence";
+import type { ResolutionPlan } from "../src/domain/resolutionPlan";
 
 const mockRuntime = {
   config: {},

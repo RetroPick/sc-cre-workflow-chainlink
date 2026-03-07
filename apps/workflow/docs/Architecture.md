@@ -80,16 +80,27 @@ Trigger (cron/HTTP/EVM log) → Handler runs on DON
 | `0x03` | CREReceiver | submitSession | SettlementRouter → ChannelSettlement.submitCheckpointFromPayload |
 | `0x04` | CREPublishReceiver | — | MarketFactory.createFromDraft |
 
+## Forecasting Intelligence Engine
+
+When `orchestration.enabled` is true, the workflow operates as a **Forecasting Intelligence Engine** rather than a simple feed-to-market pipeline. Key innovations:
+
+- **Multi-source discovery** — `sources/registry.ts` fetches from news, GitHub, CoinGecko, Polymarket, and custom feeds; normalizes to `SourceObservation`.
+- **Policy-first creation** — Deterministic rules (banned categories, language, resolution gates) decide ALLOW/REVIEW/REJECT; ML assists, policy controls.
+- **Resolution-plan-driven settlement** — Settlement uses stored `ResolutionPlan` from draft time, not free-form AI prompts.
+
+See [CREOrchestrationLayer.md](CREOrchestrationLayer.md) for the full spec.
+
 ## Workflow Handlers by Flow
 
 | Flow | Handlers | Trigger |
 |------|----------|---------|
+| Discovery (orchestration) | onDiscoveryCron | Cron |
 | Resolution (log) | onLogTrigger | EVM log (`SettlementRequested`) |
 | Resolution (schedule) | onScheduleResolver | Cron |
 | Checkpoint submit | onCheckpointSubmit | Cron |
 | Checkpoint finalize | onCheckpointFinalize | Cron (finalize schedule) |
 | Checkpoint cancel | onCheckpointCancel | Cron (cancel schedule) |
-| Market creation (feed) | scheduleTrigger → marketCreator | Cron |
+| Risk monitoring | onRiskCron | Cron (when monitoring.enabled) |
 | Publish-from-draft | onHttpTrigger → publishFromDraft | HTTP |
 | Legacy session | sessionSnapshot | Cron |
 | Draft proposal | onDraftProposer | Cron |
@@ -106,25 +117,81 @@ apps/workflow/
 ├── gpt.ts                     # AI resolution: DeepSeek API, askGPTForOutcome, binary/categorical/timeline
 │
 ├── config/                    # Config validation
-│   └── schema.ts              # validateWorkflowConfig, shouldRegisterLogTrigger, shouldRegisterScheduleResolver
+│   └── schema.ts              # validateWorkflowConfig, shouldRegisterLogTrigger, shouldRegisterScheduleResolver, shouldRegisterRiskCron
+│
+├── domain/                    # Domain types
+│   ├── candidate.ts           # SourceObservation, MarketObservation
+│   ├── understanding.ts       # UnderstandingOutput
+│   ├── evidence.ts            # EvidenceBundle, EvidenceLink
+│   ├── resolutionPlan.ts      # ResolutionPlan, resolution modes
+│   ├── draft.ts               # DraftArtifact
+│   ├── draftRecord.ts         # DraftRecord, DraftStatus
+│   ├── marketBrief.ts         # MarketBrief (L5 explainability)
+│   ├── settlementArtifact.ts  # SettlementArtifact
+│   └── ...
+│
+├── analysis/                  # Analysis core
+│   ├── classify.ts            # L1: category, event type (LLM optional)
+│   ├── riskScore.ts           # L2: risk scores (LLM optional)
+│   ├── evidenceFetcher.ts     # Evidence fetch
+│   ├── oracleability.ts       # L3: resolution source scoring
+│   ├── unresolvedCheck.ts     # L3: unresolved-state verification
+│   ├── buildResolutionPlan.ts # ResolutionPlan synthesis
+│   ├── draftSynthesis.ts      # L4: canonical question, outcomes
+│   ├── explain.ts             # L5: generateMarketBrief
+│   ├── settlementInference.ts # L6: inferSettlement
+│   └── ...
+│
+├── policy/                    # Policy engine
+│   ├── evaluate.ts            # Policy evaluation (ALLOW/REVIEW/REJECT)
+│   ├── bannedCategories.ts    # Category rules
+│   ├── bannedTerms.ts         # HARD_BANNED_TERMS, GAMBLING_TERMS
+│   ├── sourceTrust.ts         # Source-type base trust
+│   └── thresholds.ts           # Configurable thresholds
+│
+├── models/                    # ML provider layer
+│   ├── interfaces.ts          # LlmProvider, EmbeddingProvider, VerifierProvider
+│   ├── providers/              # llmProvider, embeddingProvider, verifierProvider
+│   └── prompts/                # classify, risk, draft, explain, settle prompts
 │
 ├── types/
 │   ├── config.ts              # WorkflowConfig, ResolutionMode
 │   └── feed.ts                # FeedConfig, FeedItem, MarketInput, FeedType
 │
 ├── pipeline/                  # Active handlers (primary implementation)
+│   ├── orchestration/
+│   │   ├── analyzeCandidate.ts  # Analysis core entrypoint
+│   │   └── discoveryCron.ts     # Multi-source discovery → analyzeCandidate → policy → draft/create
 │   ├── resolution/
-│   │   ├── logTrigger.ts      # EVM log SettlementRequested → read market → AI → writeReport
-│   │   └── scheduleResolver.ts # Cron poll marketIds → read MarketRegistry → AI → writeReport
+│   │   ├── logTrigger.ts       # EVM log → resolveFromPlan → writeReport
+│   │   ├── scheduleResolver.ts # Cron → resolveFromPlan → writeReport
+│   │   ├── resolveFromPlan.ts   # Load plan, call resolutionExecutor
+│   │   ├── resolutionExecutor.ts # deterministic, multi_source_deterministic, ai_assisted, human_review
+│   │   └── llmConsensus.ts     # Multi-LLM consensus for ai_assisted
 │   ├── checkpoint/
 │   │   ├── checkpointSubmit.ts   # GET /health, /cre/checkpoints → POST build → writeReport(0x03)
 │   │   ├── checkpointFinalize.ts # POST /cre/finalize/:sessionId (relayer submits tx)
 │   │   └── checkpointCancel.ts   # POST /cre/cancel/:sessionId (relayer submits tx)
-│   └── creation/
-│       ├── scheduleTrigger.ts   # Feeds → fetchFeed → generateMarketInput → createMarkets
-│       ├── marketCreator.ts     # encode + writeReport to marketFactoryAddress
-│       ├── publishFromDraft.ts  # encodePublishReport(0x04) → writeReport to CREPublishReceiver
-│       └── draftProposer.ts     # Polymarket Gamma API → proposeDraft (direct RPC)
+│   ├── creation/
+│   │   ├── scheduleTrigger.ts   # Legacy: Feeds → generateMarketInput → createMarkets
+│   │   ├── marketCreator.ts    # encode + writeReport to marketFactoryAddress
+│   │   ├── publishFromDraft.ts # encodePublishReport(0x04) → writeReport to CREPublishReceiver
+│   │   ├── draftProposer.ts    # Polymarket Gamma API → proposeDraft (direct RPC)
+│   │   ├── draftWriter.ts      # writeDraftRecord, markDraftPublished
+│   │   └── publishRevalidation.ts # revalidateForPublish before publish
+│   ├── persistence/
+│   │   ├── draftRepository.ts  # DraftRecord storage
+│   │   └── resolutionPlanStore.ts # ResolutionPlan storage
+│   ├── audit/
+│   │   └── auditLogger.ts      # logDraftDecision, logSettlementArtifact
+│   ├── privacy/               # Privacy-preserving extensions
+│   │   ├── controlledRelease.ts
+│   │   ├── confidentialFetch.ts
+│   │   ├── eligibilityCheck.ts
+│   │   └── privacyRouter.ts
+│   └── monitoring/            # Risk monitoring
+│       ├── riskCron.ts
+│       └── ...
 │
 ├── jobs/                      # Thin wrappers (deprecated; re-export pipeline)
 │   ├── checkpointSubmit.ts    # → pipeline/checkpoint/checkpointSubmit
@@ -161,7 +228,6 @@ apps/workflow/
 │   └── e2e/
 │       └── workflowE2E.test.ts # End-to-end workflow tests
 │
-├── .docs/                     # Internal planning (e.g. UpgradePlan.md)
 ├── config.example.json        # Example config
 ├── config.staging.json        # Staging config
 ├── config.production.json     # Production config
@@ -204,12 +270,15 @@ Market outcome resolution via DeepSeek. Used by `logTrigger.ts` and `scheduleRes
 
 **Flow:** `askGPTForOutcome()` → `askGPT()` or `askGPTWithPrompt()` → `buildGPTRequest` / `buildGPTRequestTyped` → HTTP POST (base64 body) → `handleDeepSeekResponse` → `parseOutcome` / `parseTypedOutcome`.
 
+**Resolution Executor & Multi-LLM Consensus:** When a `ResolutionPlan` exists (loaded from `resolutionPlanStore`), resolution uses `resolutionExecutor` instead of direct `askGPTForOutcome`. Modes: **deterministic** (official_api / onchain_event fetchers + predicate evaluator), **multi_source_deterministic** (fetch all primarySources, majority wins), **ai_assisted** (delegates to `llmConsensus` with configurable multi-LLM providers), **human_review** (halt, log artifact with `reviewRequired`). See [AIDrivenLayerEvent.md](AIDrivenLayerEvent.md).
+
 ### Data Flow Summary
 
 | Flow | Entry | Key Files | Exit |
 |------|-------|-----------|------|
-| **Resolution (log)** | EVM log | `logTrigger.ts` → `gpt.ts` → `reportFormats.ts` | CREReceiver |
-| **Resolution (schedule)** | Cron | `scheduleResolver.ts` → `marketRegistry.ts` → `gpt.ts` → `reportFormats.ts` | CREReceiver |
+| **Discovery (orchestration)** | Cron | `discoveryCron.ts` → `sources/registry` → `analyzeCandidate` → policy → `draftWriter` / `createMarkets` | DraftRepository or MarketFactory |
+| **Resolution (log)** | EVM log | `logTrigger.ts` → `resolveFromPlan` → `resolutionExecutor` → `reportFormats.ts` | CREReceiver |
+| **Resolution (schedule)** | Cron | `scheduleResolver.ts` → `resolveFromPlan` → `resolutionExecutor` → `reportFormats.ts` | CREReceiver |
 | **Checkpoint submit** | Cron | `checkpointSubmit.ts` → `utils/http.ts` (relayer) | CREReceiver (0x03) |
 | **Checkpoint finalize/cancel** | Cron | `checkpointFinalize.ts` / `checkpointCancel.ts` → `utils/http.ts` | Relayer submits tx |
 | **Feed creation** | Cron | `scheduleTrigger.ts` → `sources/*` → `generateMarket.ts` → `marketCreator.ts` | MarketFactory |
