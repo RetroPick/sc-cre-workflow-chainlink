@@ -1,0 +1,27 @@
+# Exclude root package.json so npm ci in apps/ runs standalone (avoids workspace mode)
+/package.json
+bun.lock
+
+# Dependencies and build artifacts
+node_modules
+**/node_modules
+.git
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+dist
+coverage
+.nyc_output
+
+# Contracts lib (Foundry deps) - we only need docs/abi for Docker build
+packages/contracts/lib
+packages/contracts/cache
+packages/contracts/out
+
+# IDE and misc
+.cursor
+.vscode
+*.md
+!README.md

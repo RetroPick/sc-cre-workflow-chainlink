@@ -12,7 +12,40 @@ Modular prediction-market protocol with **Chainlink CRE** orchestration. On-chai
 | [apps/workflow](apps/workflow) | Chainlink CRE workflows — market creation, session snapshot, settlement |
 | [packages/shared](packages/shared) | Shared utilities and types |
 
-## Quick Start
+## Quick Start (Local)
+
+From the repo root:
+
+```bash
+bun install
+cp .env.example .env
+# Edit .env with your keys (see .env.example for required variables)
+bun run setup
+
+# Terminal 1: Relayer
+bun run dev:relayer
+
+# Terminal 2: Frontend
+bun run dev:frontend
+
+# Or run both: bun run dev
+```
+
+- **Frontend:** http://localhost:8080
+- **Relayer:** http://localhost:8790
+
+## Quick Start (Docker)
+
+```bash
+cp .env.example .env
+# Edit .env with your keys
+docker compose up --build
+```
+
+- **Frontend:** http://localhost:8080
+- **Relayer:** http://localhost:8790
+
+## Per-App Setup (Legacy)
 
 ```bash
 # Smart contracts
@@ -24,8 +57,8 @@ cd apps/relayer && cp .env.example .env && bun run dev
 # Frontend
 cd apps/front-end-v2 && npm install && npm run dev
 
-# CRE workflow
-cd apps/workflow && bun install && cre workflow simulate ./apps/workflow --target=staging-settings
+# CRE workflow (use config.local.json for local relayer)
+cd apps/workflow && bun install && CRE_CONFIG_PATH=config.local.json cre workflow simulate . -T staging-settings
 ```
 
 ## Architecture

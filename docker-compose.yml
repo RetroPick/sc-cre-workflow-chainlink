@@ -1,0 +1,22 @@
+services:
+  relayer:
+    build:
+      context: .
+      dockerfile: apps/relayer/Dockerfile
+    ports:
+      - "8790:8790"
+    env_file: .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8790
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/front-end-v2/Dockerfile
+      args:
+        VITE_RELAYER_URL: http://localhost:8790
+    ports:
+      - "8080:80"
+    depends_on:
+      - relayer

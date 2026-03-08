@@ -1,0 +1,13 @@
+{
+  "name": "sc-cre-workflow-chainlink",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "install:all": "bun install",
+    "sync-abi": "bun run sync-abi --cwd apps/relayer && bun run sync-abi --cwd apps/front-end-v2",
+    "dev:relayer": "bun run dev --cwd apps/relayer",
+    "dev:frontend": "bun run dev --cwd apps/front-end-v2",
+    "dev": "bun run dev:relayer & bun run dev:frontend",
+    "setup": "bun run scripts/setup-env.ts"
+  }
+}
