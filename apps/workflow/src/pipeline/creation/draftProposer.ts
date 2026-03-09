@@ -171,9 +171,10 @@ export async function onDraftProposer(runtime: Runtime<WorkflowConfig>): Promise
   const proposed: string[] = [];
   for (const { params } of toPropose) {
     try {
+      const questionUri = params.questionUri?.trim() || params.question;
       const hash = await proposeDraft({
         question: params.question,
-        questionUri: params.questionUri,
+        questionUri,
         outcomes: params.outcomes,
         outcomesUri: `ipfs://outcomes-${params.externalId.replace(/[^a-z0-9-]/gi, "")}`,
         resolveTime: params.resolveTime,

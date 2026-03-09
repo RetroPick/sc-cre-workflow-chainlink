@@ -20,6 +20,9 @@ packages/contracts/lib
 packages/contracts/cache
 packages/contracts/out
 
+# Other apps (each Dockerfile copies only what it needs; workflow not needed by relayer or frontend)
+apps/workflow
+
 # IDE and misc
 .cursor
 .vscode

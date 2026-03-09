@@ -12,25 +12,6 @@ Modular prediction-market protocol with **Chainlink CRE** orchestration. On-chai
 | [apps/workflow](apps/workflow) | Chainlink CRE workflows — market creation, session snapshot, settlement |
 | [packages/shared](packages/shared) | Shared utilities and types |
 
-## Quick Start (Local)
-
-From the repo root:
-
-```bash
-bun install
-cp .env.example .env
-# Edit .env with your keys (see .env.example for required variables)
-bun run setup
-
-# Terminal 1: Relayer
-bun run dev:relayer
-
-# Terminal 2: Frontend
-bun run dev:frontend
-
-# Or run both: bun run dev
-```
-
 - **Frontend:** http://localhost:8080
 - **Relayer:** http://localhost:8790
 
@@ -72,6 +53,10 @@ Relayer: GET /cre/checkpoints/:sessionId → CRE fetches → writes 0x03 report 
 ```
 
 See [packages/contracts/README.md](packages/contracts/README.md) for full architecture, contract inventory, and deployment addresses.
+
+## Operations Runbook
+
+For day-to-day operation of the full stack and admin panel, see [OPERATIONS.md](OPERATIONS.md).
 
 ## License
 
